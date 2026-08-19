@@ -635,7 +635,7 @@
     </div>
   </div>
 
-  <!-- ADMIN CONSOLE (accessed via the "nebula-cipher-9" callsign) -->
+  <!-- ADMIN CONSOLE (accessed via the "palpatine" callsign) -->
   <div class="screen hidden" id="screen-admin">
     <div class="panel">
       <h2 style="text-align:center;color:var(--danger);font-size:16px;">\u26A0 ADMIN CONSOLE \u26A0</h2>
@@ -1543,7 +1543,7 @@
   // This same phrase must be set as the Worker's ADMIN_SECRET (see README).
   // It gates the UI here, but the real enforcement happens server-side \u2014
   // every delete call sends it and the Worker checks it before touching KV.
-  const ADMIN_CALLSIGN = "nebula-cipher-9";
+  const ADMIN_CALLSIGN = "palpatine";
   const CLASS_CODE_RE = /^[A-Za-z0-9_-]{1,20}$/;
 
   // Splits "Name@ClassCode" into its two parts. Everything after the first
@@ -2998,7 +2998,7 @@
     return d.innerHTML;
   }
 
-  /* ============ ADMIN CONSOLE (callsign "nebula-cipher-9") ============ */
+  /* ============ ADMIN CONSOLE (callsign "palpatine") ============ */
   async function renderAdminList(){
     const list = await loadBoard();
     const sorted = list.slice().sort(function(a,b){ return b.score - a.score; });
