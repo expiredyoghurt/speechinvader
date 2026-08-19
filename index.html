@@ -476,6 +476,61 @@
     background:#0c1128; border:2px solid var(--cyan-dim); border-radius:8px;
     padding:12px 16px; margin-bottom:14px; font-size:12px; color:var(--cyan);
   }
+
+  /* ---- v1.4.1: admin name+password login ---- */
+  .link-btn{
+    display:block; width:100%; text-align:center; background:none; border:none;
+    color:var(--text-dim); font-family:'Space Mono'; font-size:11px; text-transform:uppercase;
+    letter-spacing:.5px; cursor:pointer; margin-top:14px; padding:4px;
+  }
+  .link-btn:hover{ color:var(--cyan); }
+  .admin-login-box{
+    margin-top:12px; padding-top:14px; border-top:1px solid var(--grid);
+  }
+
+  /* ---- v1.4.2: full-screen team leaderboard ---- */
+  #screen-team-board{
+    max-width:none; width:100%; padding:24px 32px; box-sizing:border-box;
+  }
+  .team-board-topbar{
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;
+    margin-bottom:20px; padding-bottom:16px; border-bottom:2px solid var(--grid);
+  }
+  .team-board-title{
+    font-family:'Press Start 2P'; font-size:22px; color:var(--cyan); text-shadow:0 0 14px rgba(77,238,234,0.4);
+  }
+  .team-board-session{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; }
+  .team-board-controls{ display:flex; gap:8px; flex-wrap:wrap; }
+  .team-group-picker{
+    background:#0c1128; border:2px solid var(--grid); border-radius:8px; padding:14px 16px; margin-bottom:20px;
+  }
+  .team-group-picker-label{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; }
+  #team-group-checkboxes{ display:flex; flex-wrap:wrap; gap:10px; }
+  .team-group-chip{
+    display:flex; align-items:center; gap:6px; background:#101832; border:2px solid var(--grid); border-radius:20px;
+    padding:6px 14px; font-size:12px; cursor:pointer; user-select:none;
+  }
+  .team-group-chip.checked{ border-color:var(--cyan); color:var(--cyan); }
+  .team-group-chip input{ accent-color:var(--cyan); }
+  .team-board-empty{ text-align:center; color:var(--text-dim); font-size:14px; padding:60px 0; }
+  .team-board-list{ display:flex; flex-direction:column; gap:14px; }
+  .team-card{
+    display:flex; align-items:center; gap:20px; background:#0c1128; border:2px solid var(--grid); border-radius:12px;
+    padding:18px 26px; transition:transform .2s ease;
+  }
+  .team-card.rank-1{ border-color:#ffd447; box-shadow:0 0 22px rgba(255,212,71,0.25); }
+  .team-card.rank-2{ border-color:#c8d2e0; box-shadow:0 0 16px rgba(200,210,224,0.18); }
+  .team-card.rank-3{ border-color:#d38a52; box-shadow:0 0 16px rgba(211,138,82,0.18); }
+  .team-card .t-rank{
+    font-family:'Press Start 2P'; font-size:22px; width:56px; text-align:center; flex-shrink:0; color:var(--text-dim);
+  }
+  .team-card.rank-1 .t-rank{ color:#ffd447; }
+  .team-card.rank-2 .t-rank{ color:#c8d2e0; }
+  .team-card.rank-3 .t-rank{ color:#d38a52; }
+  .team-card .t-info{ flex:1; min-width:0; }
+  .team-card .t-name{ font-family:'Press Start 2P'; font-size:16px; color:var(--text); }
+  .team-card .t-meta{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; margin-top:4px; }
+  .team-card .t-score{ font-family:'Press Start 2P'; font-size:24px; color:var(--amber); flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -525,6 +580,17 @@
       <div class="err" id="login-err"></div>
       <div class="btn-row">
         <button class="btn" id="btn-login">Enter The Arcade</button>
+      </div>
+      <button type="button" class="link-btn" id="btn-admin-toggle">Teacher / Admin Login</button>
+      <div class="admin-login-box hidden" id="admin-login-box">
+        <label for="admin-name-input">Admin name</label>
+        <input type="text" id="admin-name-input" maxlength="40" autocomplete="off">
+        <label for="admin-pass-input">Password</label>
+        <input type="password" id="admin-pass-input" maxlength="60" autocomplete="off">
+        <div class="err" id="admin-login-err"></div>
+        <div class="btn-row">
+          <button class="btn secondary" id="btn-admin-login">Enter Console</button>
+        </div>
       </div>
     </div>
   </div>
@@ -635,7 +701,7 @@
     </div>
   </div>
 
-  <!-- ADMIN CONSOLE (accessed via the "palpatine" callsign) -->
+  <!-- ADMIN CONSOLE (accessed via the Teacher / Admin Login form) -->
   <div class="screen hidden" id="screen-admin">
     <div class="panel">
       <h2 style="text-align:center;color:var(--danger);font-size:16px;">\u26A0 ADMIN CONSOLE \u26A0</h2>
@@ -651,6 +717,14 @@
     </div>
 
     <div class="panel">
+      <h2 style="text-align:center;color:var(--ok);font-size:16px;">\uD83D\uDC65 TEAM LEADERBOARD</h2>
+      <div class="admin-sub">Project group vs. group totals for the current class</div>
+      <div class="btn-row">
+        <button class="btn" id="btn-open-team-board">Open Team Leaderboard</button>
+      </div>
+    </div>
+
+    <div class="panel">
       <h2 style="text-align:center;color:var(--amber);font-size:16px;">\uD83D\uDCCA QUESTION ANALYTICS</h2>
       <div class="admin-sub">Highest error rate first \u2014 across every pilot</div>
       <div id="admin-analytics-list"></div>
@@ -659,6 +733,25 @@
         <button class="btn magenta" id="btn-analytics-reset">Reset Analytics</button>
       </div>
     </div>
+  </div>
+
+  <!-- TEAM LEADERBOARD (full-screen, projector-facing) -->
+  <div class="screen hidden" id="screen-team-board">
+    <div class="team-board-topbar">
+      <div class="team-board-title">TEAM LEADERBOARD</div>
+      <div class="team-board-session" id="team-session-info"></div>
+      <div class="team-board-controls">
+        <button type="button" class="btn-secondary" id="btn-team-groups-toggle">Choose Groups</button>
+        <button type="button" class="btn-secondary" id="btn-team-new-session">Start New Session</button>
+        <button type="button" class="btn-secondary" id="btn-team-fullscreen">Go Full Screen</button>
+        <button type="button" class="btn-secondary" id="btn-team-back">Back to Console</button>
+      </div>
+    </div>
+    <div class="team-group-picker hidden" id="team-group-picker">
+      <div class="team-group-picker-label">Include which groups?</div>
+      <div id="team-group-checkboxes"></div>
+    </div>
+    <div class="team-board-list" id="team-board-list"></div>
   </div>
 
 </div>
@@ -1531,7 +1624,7 @@
 
   /* ============ NAV HELPERS ============ */
   function show(id){
-    ["screen-login","screen-mode","screen-game","screen-over","screen-admin"].forEach(function(s){
+    ["screen-login","screen-mode","screen-game","screen-over","screen-admin","screen-team-board"].forEach(function(s){
       document.getElementById(s).classList.toggle("hidden", s !== id);
     });
   }
@@ -1540,10 +1633,15 @@
   const nameInput = document.getElementById("name-input");
   const loginErr = document.getElementById("login-err");
   const loginPreview = document.getElementById("login-preview");
-  // This same phrase must be set as the Worker's ADMIN_SECRET (see README).
-  // It gates the UI here, but the real enforcement happens server-side \u2014
-  // every delete call sends it and the Worker checks it before touching KV.
-  const ADMIN_CALLSIGN = "palpatine";
+  // v1.4.1: dedicated admin login (name + password), replacing the old
+  // "type a magic phrase into the name field" gate \u2014 that was easy to
+  // forget/mistype and wasn't discoverable as an admin entry point at all.
+  // ADMIN_PASSWORD is what gets sent to the Worker as X-Admin-Secret on
+  // every delete call; it must match the Worker's ADMIN_SECRET secret
+  // exactly (see README) or deletes will be rejected server-side even
+  // after a successful login here.
+  const ADMIN_NAME = "palpatine";
+  const ADMIN_PASSWORD = "Order-66";
   const CLASS_CODE_RE = /^[A-Za-z0-9_-]{1,20}$/;
 
   // Splits "Name@ClassCode" into its two parts. Everything after the first
@@ -1574,18 +1672,6 @@
       return;
     }
 
-    if(raw.toLowerCase() === ADMIN_CALLSIGN){
-      loginErr.textContent = "";
-      nameInput.classList.remove("bad");
-      adminSecret = ADMIN_CALLSIGN;
-      nameInput.value = "";
-      loginPreview.textContent = "";
-      show("screen-admin");
-      renderAdminList();
-      renderAdminAnalytics();
-      return;
-    }
-
     const parsed = parseCallsign(raw);
     if(!parsed.name || parsed.name.length < 2){
       loginErr.textContent = "Callsign must be at least 2 characters.";
@@ -1613,6 +1699,39 @@
     buildModeScreen();
     show("screen-mode");
   }
+
+  const adminToggleBtn = document.getElementById("btn-admin-toggle");
+  const adminBox = document.getElementById("admin-login-box");
+  const adminNameInput = document.getElementById("admin-name-input");
+  const adminPassInput = document.getElementById("admin-pass-input");
+  const adminLoginErr = document.getElementById("admin-login-err");
+
+  adminToggleBtn.addEventListener("click", function(){
+    adminBox.classList.toggle("hidden");
+    if(!adminBox.classList.contains("hidden")){ adminNameInput.focus(); }
+  });
+
+  function doAdminLogin(){
+    const name = adminNameInput.value.trim().toLowerCase();
+    const pass = adminPassInput.value;
+    if(name === ADMIN_NAME && pass === ADMIN_PASSWORD){
+      adminLoginErr.textContent = "";
+      adminSecret = ADMIN_PASSWORD;
+      adminNameInput.value = "";
+      adminPassInput.value = "";
+      adminBox.classList.add("hidden");
+      show("screen-admin");
+      renderAdminList();
+      renderAdminAnalytics();
+    } else {
+      adminLoginErr.textContent = "Incorrect admin name or password.";
+      adminPassInput.value = "";
+      adminPassInput.focus();
+    }
+  }
+  document.getElementById("btn-admin-login").addEventListener("click", doAdminLogin);
+  adminNameInput.addEventListener("keydown", function(e){ if(e.key === "Enter") doAdminLogin(); });
+  adminPassInput.addEventListener("keydown", function(e){ if(e.key === "Enter") doAdminLogin(); });
 
   /* ============ v1.4: CAMPAIGN PERSISTENCE (per-device, localStorage) ============
      Not a synced backend feature \u2014 just remembers a returning pupil's last
@@ -2998,7 +3117,7 @@
     return d.innerHTML;
   }
 
-  /* ============ ADMIN CONSOLE (callsign "palpatine") ============ */
+  /* ============ ADMIN CONSOLE (Teacher / Admin Login form) ============ */
   async function renderAdminList(){
     const list = await loadBoard();
     const sorted = list.slice().sort(function(a,b){ return b.score - a.score; });
@@ -3059,6 +3178,7 @@
   document.getElementById("btn-admin-refresh").addEventListener("click", renderAdminList);
   document.getElementById("btn-admin-delete-all").addEventListener("click", adminDeleteAll);
   document.getElementById("btn-admin-back").addEventListener("click", function(){
+    adminSecret = null;
     show("screen-login");
   });
 
@@ -3131,6 +3251,164 @@
 
   document.getElementById("btn-analytics-refresh").addEventListener("click", renderAdminAnalytics);
   document.getElementById("btn-analytics-reset").addEventListener("click", adminResetAnalytics);
+
+  /* ============ v1.4.2: TEAM LEADERBOARD (full-screen, projector-facing) ============
+     Groups scores by the @ClassCode tag pupils already log in with and sums
+     them per group, so teams can compete on total score. Polls the same
+     public /api/leaderboard endpoint every few seconds \u2014 this is "near
+     real-time" (bounded by both the poll interval and KV's own eventual
+     consistency), not a live push feed. See the file's version notes for
+     why: true live mid-game updates would need a backend redesign. */
+  const TEAM_SESSION_KEY = "speechInvadersTeamSessionStart";
+  const TEAM_GROUPS_KEY = "speechInvadersTeamSelectedGroups";
+  const TEAM_POLL_MS = 7000;
+  let teamPollTimer = null;
+  let teamLastEntries = [];
+  let teamSessionStart = 0;
+  let teamSelectedGroups = null; // null = "all groups seen so far"; otherwise a Set
+
+  function groupLabel(classCode){
+    return classCode ? classCode.toUpperCase() : "(Ungrouped)";
+  }
+
+  function loadTeamPrefs(){
+    try{
+      const savedStart = localStorage.getItem(TEAM_SESSION_KEY);
+      teamSessionStart = savedStart ? Number(savedStart) : Date.now();
+    }catch(e){ teamSessionStart = Date.now(); }
+    try{
+      const savedGroups = JSON.parse(localStorage.getItem(TEAM_GROUPS_KEY) || "null");
+      teamSelectedGroups = Array.isArray(savedGroups) ? new Set(savedGroups) : null;
+    }catch(e){ teamSelectedGroups = null; }
+  }
+  function saveTeamGroups(){
+    try{
+      localStorage.setItem(TEAM_GROUPS_KEY, JSON.stringify(teamSelectedGroups ? Array.from(teamSelectedGroups) : null));
+    }catch(e){ /* storage unavailable */ }
+  }
+  function saveTeamSessionStart(){
+    try{ localStorage.setItem(TEAM_SESSION_KEY, String(teamSessionStart)); }catch(e){ /* storage unavailable */ }
+  }
+
+  function renderTeamGroupPicker(){
+    const allGroups = Array.from(new Set(teamLastEntries.map(function(e){ return groupLabel(e.classCode); }))).sort();
+    const box = document.getElementById("team-group-checkboxes");
+    box.innerHTML = "";
+    if(allGroups.length === 0){
+      box.innerHTML = '<span style="color:var(--text-dim);font-size:12px;">No scores submitted yet \u2014 groups will appear here as pupils finish a mission.</span>';
+      return;
+    }
+    // Default to "everything currently visible" the first time this loads.
+    if(teamSelectedGroups === null){
+      teamSelectedGroups = new Set(allGroups);
+    }
+    allGroups.forEach(function(g){
+      const chip = document.createElement("label");
+      chip.className = "team-group-chip" + (teamSelectedGroups.has(g) ? " checked" : "");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = teamSelectedGroups.has(g);
+      cb.addEventListener("change", function(){
+        if(cb.checked){ teamSelectedGroups.add(g); } else { teamSelectedGroups.delete(g); }
+        saveTeamGroups();
+        renderTeamGroupPicker();
+        renderTeamBoard();
+      });
+      chip.appendChild(cb);
+      chip.appendChild(document.createTextNode(g));
+      box.appendChild(chip);
+    });
+  }
+
+  function renderTeamBoard(){
+    const listEl = document.getElementById("team-board-list");
+    const sessionInfo = document.getElementById("team-session-info");
+    const startedLabel = new Date(teamSessionStart).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    sessionInfo.textContent = "Session started " + startedLabel;
+
+    const inSession = teamLastEntries.filter(function(e){ return e.date >= teamSessionStart; });
+    const included = teamSelectedGroups
+      ? inSession.filter(function(e){ return teamSelectedGroups.has(groupLabel(e.classCode)); })
+      : inSession;
+
+    const totals = {};
+    included.forEach(function(e){
+      const g = groupLabel(e.classCode);
+      if(!totals[g]) totals[g] = {group:g, total:0, count:0};
+      totals[g].total += e.score;
+      totals[g].count += 1;
+    });
+    const ranked = Object.values(totals).sort(function(a, b){ return b.total - a.total; });
+
+    listEl.innerHTML = "";
+    if(ranked.length === 0){
+      const empty = document.createElement("div");
+      empty.className = "team-board-empty";
+      empty.textContent = "No scores yet this session for the selected group(s) \u2014 waiting on pupils to finish a mission\u2026";
+      listEl.appendChild(empty);
+      return;
+    }
+    ranked.forEach(function(t, i){
+      const rank = i + 1;
+      const card = document.createElement("div");
+      card.className = "team-card" + (rank <= 3 ? " rank-" + rank : "");
+      card.innerHTML =
+        '<div class="t-rank">#' + rank + '</div>' +
+        '<div class="t-info"><div class="t-name">' + escapeHtml(t.group) + '</div>' +
+        '<div class="t-meta">' + t.count + " mission" + (t.count > 1 ? "s" : "") + " completed this session</div></div>" +
+        '<div class="t-score">' + t.total.toLocaleString() + "</div>";
+      listEl.appendChild(card);
+    });
+  }
+
+  async function refreshTeamBoard(){
+    teamLastEntries = await loadBoard();
+    renderTeamGroupPicker();
+    renderTeamBoard();
+  }
+
+  function openTeamBoard(){
+    loadTeamPrefs();
+    show("screen-team-board");
+    document.getElementById("team-group-picker").classList.add("hidden");
+    refreshTeamBoard();
+    clearInterval(teamPollTimer);
+    teamPollTimer = setInterval(refreshTeamBoard, TEAM_POLL_MS);
+  }
+  function closeTeamBoard(){
+    clearInterval(teamPollTimer);
+    teamPollTimer = null;
+    if(document.fullscreenElement){ document.exitFullscreen().catch(function(){}); }
+    show("screen-admin");
+  }
+
+  document.getElementById("btn-open-team-board").addEventListener("click", openTeamBoard);
+  document.getElementById("btn-team-back").addEventListener("click", closeTeamBoard);
+  document.getElementById("btn-team-groups-toggle").addEventListener("click", function(){
+    document.getElementById("team-group-picker").classList.toggle("hidden");
+  });
+  document.getElementById("btn-team-new-session").addEventListener("click", function(){
+    if(!confirm("Start a new session? Team totals will reset to zero and only count scores submitted from now on.")) return;
+    teamSessionStart = Date.now();
+    saveTeamSessionStart();
+    renderTeamBoard();
+  });
+  document.getElementById("btn-team-fullscreen").addEventListener("click", function(){
+    const el = document.getElementById("screen-team-board");
+    if(document.fullscreenElement){
+      document.exitFullscreen().catch(function(){});
+    } else if(el.requestFullscreen){
+      el.requestFullscreen().catch(function(){
+        alert("Full screen isn't available in this browser \u2014 you can still project the window as-is.");
+      });
+    } else {
+      alert("Full screen isn't supported in this browser \u2014 you can still project the window as-is.");
+    }
+  });
+  document.addEventListener("fullscreenchange", function(){
+    const btn = document.getElementById("btn-team-fullscreen");
+    if(btn){ btn.textContent = document.fullscreenElement ? "Exit Full Screen" : "Go Full Screen"; }
+  });
 
   /* init */
   buildModeScreen();
