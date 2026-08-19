@@ -1,0 +1,11 @@
+# Wrangler / Cloudflare
+.wrangler/
+.dev.vars
+
+# Node (only relevant if you ever add tooling later)
+node_modules/
+npm-debug.log*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

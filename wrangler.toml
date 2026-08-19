@@ -1,0 +1,17 @@
+name = "galactic-leaderboard"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Leaderboard + question-analytics storage \u2014 unchanged from earlier versions,
+# still the same namespace your existing high scores live in.
+[[kv_namespaces]]
+binding = "LEADERBOARD"
+id = "32466beddfb141b082bd9295f952e2be"
+
+# Reserved for this game specifically (renamed from the old generic
+# "Game_KV" naming). Not read/written by worker.js yet \u2014 wired in here so
+# it's available the moment a feature needs its own namespace (e.g.
+# server-side custom question sets, whole-class session state).
+[[kv_namespaces]]
+binding = "Game_SI_KV"
+id = "aa5b3c89630447faa41747ed3c73197b"

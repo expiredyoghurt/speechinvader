@@ -1,0 +1,3144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPEECH INVADERS — Reported Speech Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0b0e1a;
+    --void-2:#10152a;
+    --grid:#1c2740;
+    --cyan:#4deeea;
+    --cyan-dim:#1f8f8c;
+    --magenta:#f74aad;
+    --amber:#ffcb47;
+    --text:#e8f0ff;
+    --text-dim:#8593b8;
+    --danger:#ff4d5e;
+    --ok:#38f2a0;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 50% -10%, #17204a 0%, var(--void) 55%),
+      var(--void);
+    color:var(--text);
+    font-family:'Space Mono', monospace;
+    overflow-x:hidden;
+    position:relative;
+  }
+  #stars{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+      radial-gradient(1.5px 1.5px at 20px 30px, #ffffff55 100%, transparent),
+      radial-gradient(1.5px 1.5px at 140px 90px, #ffffff44 100%, transparent),
+      radial-gradient(1px 1px at 200px 40px, #ffffff33 100%, transparent),
+      radial-gradient(1.5px 1.5px at 260px 160px, #ffffff55 100%, transparent),
+      radial-gradient(1px 1px at 320px 60px, #ffffff33 100%, transparent),
+      radial-gradient(1.5px 1.5px at 70px 180px, #ffffff44 100%, transparent),
+      radial-gradient(1px 1px at 380px 220px, #ffffff33 100%, transparent);
+    background-repeat:repeat;
+    background-size:400px 240px;
+    animation: drift 60s linear infinite;
+    opacity:.8;
+  }
+  @keyframes drift{ from{background-position:0 0;} to{background-position:-400px 240px;} }
+  #crt{
+    position:fixed; inset:0; z-index:5; pointer-events:none; mix-blend-mode:overlay;
+    background:repeating-linear-gradient(
+      to bottom, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px,
+      transparent 2px, transparent 4px
+    );
+  }
+  #vignette{
+    position:fixed; inset:0; z-index:6; pointer-events:none;
+    box-shadow: inset 0 0 160px 40px rgba(0,0,0,0.65);
+  }
+  .layout{
+    position:relative; z-index:1; min-height:100vh; display:flex; gap:22px;
+    align-items:flex-start; justify-content:center; padding:24px 16px 60px; max-width:1060px; margin:0 auto;
+  }
+  .sidebar{
+    width:260px; flex-shrink:0; position:sticky; top:24px;
+    background:linear-gradient(180deg, var(--void-2), #0c1024);
+    border:2px solid var(--grid); border-radius:10px; padding:16px;
+    max-height:calc(100vh - 48px); overflow-y:auto;
+  }
+  .sidebar-title{ font-family:'Press Start 2P'; font-size:11px; color:var(--cyan); margin-bottom:10px; line-height:1.5; }
+  .sync-status{ font-size:10px; letter-spacing:.5px; margin-bottom:10px; text-transform:uppercase; }
+  .sync-status.online{ color:var(--ok); }
+  .sync-status.offline{ color:var(--danger); }
+  .sync-warning{
+    display:none; background:rgba(255,77,94,0.1); border:1px solid var(--danger); color:var(--danger);
+    font-size:11px; line-height:1.5; padding:10px 12px; border-radius:6px; margin:14px 0 0;
+  }
+  .sync-warning.show{ display:block; }
+  .practice-focus{
+    display:none; background:rgba(255,203,71,0.1); border:1px solid var(--amber); color:var(--amber);
+    font-size:12px; line-height:1.6; padding:12px 14px; border-radius:6px; margin:14px 0 0; text-align:center;
+  }
+  .practice-focus.show{ display:block; }
+  .sidebar select{ width:100%; margin-bottom:10px; font-size:11px; }
+  .sidebar-empty{ color:var(--text-dim); font-size:11px; text-align:center; padding:16px 0; }
+  .sidebar-row{
+    display:flex; align-items:center; gap:8px; font-size:12px; padding:7px 0;
+    border-bottom:1px solid #171e38;
+  }
+  .sidebar-row .s-rank{ font-family:'Press Start 2P'; font-size:9px; color:var(--cyan); width:16px; flex-shrink:0; }
+  .sidebar-row .s-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sidebar-row .s-score{ color:var(--amber); font-weight:bold; flex-shrink:0; }
+  .sidebar-row .s-meta{ display:block; font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; }
+  .sidebar-row.me{ background:rgba(77,238,234,0.08); }
+  @media (max-width:900px){
+    .layout{ flex-direction:column; align-items:stretch; }
+    .sidebar{ width:100%; position:static; max-height:280px; }
+  }
+
+  .app{ flex:1; min-width:0; max-width:720px; display:flex; flex-direction:column; align-items:center; }
+  .screen{ width:100%; max-width:720px; }
+  .hidden{ display:none !important; }
+
+  h1,h2,h3{ font-family:'Press Start 2P', monospace; letter-spacing:1px; margin:0; }
+  .title{
+    text-align:center; font-size:clamp(20px, 5vw, 34px); color:var(--cyan);
+    text-shadow: 0 0 6px var(--cyan), 0 0 22px rgba(77,238,234,0.5);
+    margin-bottom:6px;
+  }
+  .subtitle{ text-align:center; color:var(--text-dim); font-size:12px; letter-spacing:2px; text-transform:uppercase; margin-bottom:28px;}
+
+  .panel{
+    background:linear-gradient(180deg, var(--void-2), #0c1024);
+    border:2px solid var(--grid);
+    border-radius:10px;
+    padding:22px;
+    box-shadow: 0 0 0 1px rgba(77,238,234,0.06), 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .panel + .panel{ margin-top:16px; }
+
+  label{ display:block; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:8px; }
+
+  input[type=text]{
+    width:100%; background:#060812; border:2px solid var(--cyan-dim); color:var(--cyan);
+    font-family:'Space Mono', monospace; font-size:16px; padding:12px 14px; border-radius:6px;
+    outline:none; letter-spacing:1px;
+  }
+  input[type=text]:focus{ border-color:var(--cyan); box-shadow:0 0 0 3px rgba(77,238,234,0.15); }
+  input[type=text].bad{ border-color:var(--danger); box-shadow:0 0 0 3px rgba(255,77,94,0.18); }
+
+  .btn{
+    font-family:'Press Start 2P', monospace; font-size:12px; color:var(--void);
+    background:var(--cyan); border:none; padding:14px 18px; border-radius:6px; cursor:pointer;
+    text-transform:uppercase; letter-spacing:1px; box-shadow:0 4px 0 var(--cyan-dim);
+    transition:transform .05s ease;
+  }
+  .btn:active{ transform:translateY(3px); box-shadow:0 1px 0 var(--cyan-dim); }
+  .btn:disabled{ opacity:.35; cursor:not-allowed; }
+  .btn.secondary{ background:transparent; color:var(--cyan); border:2px solid var(--cyan-dim); box-shadow:none; }
+  .btn.magenta{ background:var(--magenta); box-shadow:0 4px 0 #a52f74; }
+  .btn.amber{ background:var(--amber); box-shadow:0 4px 0 #a5852b; }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+  .btn-row .btn{ flex:1; min-width:140px; }
+
+  .err{ color:var(--danger); font-size:11px; margin-top:8px; min-height:14px; }
+
+  .grid-4{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+  @media (max-width:480px){ .grid-4{ grid-template-columns:1fr; } }
+  .tense-card{
+    background:#0c1128; border:2px solid var(--grid); border-radius:8px; padding:14px;
+    cursor:pointer; text-align:left; transition:.12s ease;
+  }
+  .tense-card:hover{ border-color:var(--cyan-dim); }
+  .tense-card.selected{ border-color:var(--cyan); box-shadow:0 0 0 2px rgba(77,238,234,0.25); }
+  .tense-card .t-name{ font-family:'Press Start 2P'; font-size:11px; color:var(--cyan); margin-bottom:6px; }
+  .tense-card .t-desc{ font-size:11px; color:var(--text-dim); line-height:1.5; }
+  .tense-card.selected .t-name{ color:var(--amber); }
+
+  .length-row{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .length-card{
+    flex:1; min-width:150px; background:#0c1128; border:2px solid var(--grid); border-radius:8px; padding:16px; text-align:center; cursor:pointer;
+  }
+  .length-card.selected{ border-color:var(--magenta); box-shadow:0 0 0 2px rgba(247,74,173,0.25); }
+  .length-card .l-name{ font-family:'Press Start 2P'; font-size:12px; color:var(--text); margin-bottom:6px;}
+  .length-card.selected .l-name{ color:var(--magenta); }
+  .length-card .l-desc{ font-size:10px; color:var(--text-dim); }
+
+  .hud{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-size:11px; color:var(--text-dim); margin-bottom:12px;}
+  .hud b{ color:var(--amber); font-family:'Press Start 2P'; font-size:13px; }
+  .lives{ display:flex; gap:5px; }
+  .life{ font-size:17px; line-height:1; color:var(--magenta); filter:drop-shadow(0 0 3px rgba(247,74,173,0.6)); }
+  .life.lost{ color:#242c46; filter:none; }
+
+  .difficulty-row{ text-align:right; margin:-6px 0 10px; min-height:18px; }
+  .difficulty-chip{
+    font-family:'Press Start 2P'; font-size:9px; color:var(--magenta); border:1px solid var(--magenta);
+    border-radius:4px; padding:3px 6px;
+  }
+
+  .timerbar-wrap{ height:8px; background:#161c34; border-radius:4px; overflow:hidden; margin-bottom:18px; }
+  .timerbar{ height:100%; background:linear-gradient(90deg, var(--cyan), var(--amber)); width:100%; transition:width .1s linear; }
+  .timerbar.warn{ background:linear-gradient(90deg, var(--amber), var(--danger)); }
+
+  .transmission{
+    font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px;
+  }
+  .direct-quote{
+    font-size:16px; line-height:1.6; color:var(--text); margin-bottom:20px; min-height:52px;
+    border-left:3px solid var(--cyan-dim); padding-left:12px;
+  }
+  .direct-quote .cursor{ display:inline-block; width:8px; background:var(--cyan); animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  .battle-scene{
+    position:relative; display:flex; align-items:center; justify-content:space-between;
+    min-height:104px; margin:6px 0 20px; padding:0 4px; gap:6px;
+  }
+
+  .ship-col{ position:relative; flex:0 0 auto; width:78px; height:78px; display:flex; align-items:center; justify-content:center; }
+  .ship-svg{ width:62px; height:auto; color:var(--cyan); filter:drop-shadow(0 0 8px rgba(77,238,234,0.6)); animation: shipfloat 2.6s ease-in-out infinite; }
+  .ship-svg-inner{ width:100%; height:auto; display:block; }
+  @keyframes shipfloat{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-6px);} }
+  .ship-svg.shake{ animation: shake .4s; }
+  .ship-svg.destroyed{ opacity:0; transition:opacity .2s ease-out; }
+  .shield-ring{
+    position:absolute; inset:2px; border:3px solid var(--cyan); border-radius:50%; opacity:0; pointer-events:none;
+  }
+  .shield-ring.hit{ animation: shieldFlash .6s ease-out; }
+  @keyframes shieldFlash{
+    0%{ opacity:1; transform:scale(.7); border-color:var(--danger); }
+    100%{ opacity:0; transform:scale(1.55); border-color:var(--danger); }
+  }
+
+  .battle-track{ position:relative; flex:1; height:4px; margin:0 4px; align-self:center; }
+  .laser-bolt{
+    position:absolute; top:50%; left:0; width:26px; height:5px; border-radius:3px; opacity:0;
+    transform:translateY(-50%); pointer-events:none;
+  }
+  .laser-bolt.fire-ally-blue{ background:#4deeea; box-shadow:0 0 8px #4deeea, 0 0 18px #4deeea; animation: laserFwd .45s linear forwards; }
+  .laser-bolt.fire-ally-green{ background:#3dff9a; box-shadow:0 0 8px #3dff9a, 0 0 18px #3dff9a; animation: laserFwd .45s linear forwards; }
+  .laser-bolt.fire-enemy{ background:var(--danger); box-shadow:0 0 8px var(--danger), 0 0 18px var(--danger); animation: laserBack .45s linear forwards; }
+  @keyframes laserFwd{ 0%{ left:0%; opacity:1;} 88%{ left:96%; opacity:1;} 100%{ left:100%; opacity:0;} }
+  @keyframes laserBack{ 0%{ left:100%; opacity:1;} 88%{ left:4%; opacity:1;} 100%{ left:0%; opacity:0;} }
+
+  .alien-col{ position:relative; flex:0 0 auto; width:96px; display:flex; flex-direction:column; align-items:center; }
+
+  .explosion-fx{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(.2); font-size:46px;
+    opacity:0; pointer-events:none;
+  }
+  .explosion-fx.boom{ animation: explodeFx .6s ease-out forwards; }
+  @keyframes explodeFx{
+    0%{ transform:translate(-50%,-50%) scale(.2); opacity:1; }
+    55%{ transform:translate(-50%,-50%) scale(1.3); opacity:1; }
+    100%{ transform:translate(-50%,-50%) scale(1.6); opacity:0; }
+  }
+
+  .alien{ display:inline-block; font-size:38px; animation:float 2.4s ease-in-out infinite; filter:drop-shadow(0 0 10px rgba(247,74,173,0.5)); }
+  @keyframes float{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-8px);} }
+  .alien.shake{ animation:shake .4s; }
+  @keyframes shake{ 0%,100%{ transform:translateX(0);} 20%{ transform:translateX(-8px);} 40%{ transform:translateX(8px);} 60%{ transform:translateX(-6px);} 80%{ transform:translateX(6px);} }
+  .alien.destroyed{ opacity:0; transition:opacity .2s ease-out; }
+  .alien.boss{
+    font-size:60px;
+    animation: bossfloat 1.8s ease-in-out infinite, bosspulse 1.4s ease-in-out infinite;
+    filter:drop-shadow(0 0 16px rgba(255,77,94,0.85));
+  }
+  @keyframes bossfloat{ 0%,100%{ transform:translateY(0) scale(1);} 50%{ transform:translateY(-10px) scale(1.05);} }
+  @keyframes bosspulse{ 0%,100%{ filter:drop-shadow(0 0 10px rgba(255,77,94,0.7));} 50%{ filter:drop-shadow(0 0 24px rgba(255,77,94,1));} }
+  .boss-tag{
+    display:none; text-align:center; font-family:'Press Start 2P'; font-size:11px; color:var(--danger);
+    letter-spacing:1.5px; margin-bottom:4px; text-shadow:0 0 8px rgba(255,77,94,0.7);
+    animation: bosstagblink 1s steps(1) infinite;
+  }
+  .boss-tag.show{ display:block; }
+  @keyframes bosstagblink{ 50%{ opacity:.45; } }
+
+  .bubble{
+    background:#0c1128; border:2px solid var(--grid); border-radius:10px; padding:18px;
+    font-size:15px; line-height:2.4; text-align:left;
+  }
+  .bubble.boss{ border-color:var(--danger); box-shadow:0 0 0 1px rgba(255,77,94,0.25), 0 0 18px rgba(255,77,94,0.2); }
+  .blank{
+    display:inline-block; width:110px; background:#060812; border:none; border-bottom:2px solid var(--cyan-dim);
+    color:var(--amber); font-family:'Space Mono', monospace; font-size:14px; padding:4px 6px; margin:0 3px; text-align:center; outline:none;
+  }
+  .blank:focus{ border-color:var(--cyan); }
+  .blank.correct{ border-color:var(--ok); color:var(--ok); }
+  .blank.incorrect{ border-color:var(--danger); color:var(--danger); }
+  .blank.wide{ width:220px; }
+  .blank.xwide{ width:100%; max-width:460px; }
+  .reveal{
+    display:inline-block; color:var(--amber); font-size:12px; margin-left:4px;
+    border-bottom:1px dashed var(--amber); padding-bottom:1px;
+  }
+
+  .feedback{ text-align:center; font-family:'Press Start 2P'; font-size:12px; min-height:20px; margin-top:16px; line-height:1.6; }
+  .feedback.ok{ color:var(--ok); }
+  .feedback.bad{ color:var(--danger); }
+
+  .explainer{
+    display:none; background:#0c1128; border:2px solid var(--amber); border-radius:8px;
+    padding:14px 16px; margin-top:14px;
+  }
+  .explainer.show{ display:block; }
+  .explain-line{ font-size:13px; line-height:1.6; color:var(--text); }
+  .explain-line + .explain-line{ margin-top:8px; padding-top:8px; border-top:1px solid #1c2740; }
+  .explain-line b{ color:var(--amber); }
+
+  table.board{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.board th{ text-align:left; color:var(--text-dim); font-size:10px; text-transform:uppercase; letter-spacing:1px; padding:8px 6px; border-bottom:2px solid var(--grid); }
+  table.board td{ padding:8px 6px; border-bottom:1px solid #171e38; }
+  .rank{ font-family:'Press Start 2P'; font-size:11px; color:var(--cyan); width:34px; }
+  .me{ background:rgba(77,238,234,0.06); }
+
+  select{
+    background:#060812; color:var(--cyan); border:2px solid var(--cyan-dim); font-family:'Space Mono';
+    padding:8px 10px; border-radius:6px; font-size:12px; outline:none;
+  }
+
+  .stat-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:18px 0; text-align:center; }
+  .stat{ background:#0c1128; border:2px solid var(--grid); border-radius:8px; padding:14px 8px; }
+  .stat .v{ font-family:'Press Start 2P'; font-size:18px; color:var(--amber); }
+  .stat .k{ font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; margin-top:6px; }
+
+  .admin-sub{ text-align:center; color:var(--text-dim); font-size:11px; text-transform:uppercase; letter-spacing:1.5px; margin:8px 0 18px; }
+  .admin-empty{ color:var(--text-dim); font-size:12px; text-align:center; padding:24px 0; }
+  .admin-row{
+    display:flex; align-items:center; gap:10px; padding:10px 8px; border-bottom:1px solid #171e38; font-size:12px;
+  }
+  .admin-row .a-rank{ font-family:'Press Start 2P'; font-size:10px; color:var(--cyan); width:22px; flex-shrink:0; }
+  .admin-row .a-info{ flex:1; min-width:0; }
+  .admin-row .a-name{ color:var(--text); font-weight:bold; }
+  .admin-row .a-meta{ display:block; font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; margin-top:2px; }
+  .admin-row .a-score{ color:var(--amber); font-family:'Press Start 2P'; font-size:12px; flex-shrink:0; }
+  .admin-row .a-delete{
+    flex-shrink:0; background:transparent; border:1px solid var(--danger); color:var(--danger);
+    font-family:'Space Mono'; font-size:11px; padding:6px 10px; border-radius:5px; cursor:pointer;
+  }
+  .admin-row .a-delete:hover{ background:var(--danger); color:var(--void); }
+
+  /* ---- v1.2: scope/time tabs, pins, mission banner, rank panel ---- */
+  .tab-row{ display:flex; gap:6px; margin-bottom:10px; }
+  .tab-btn{
+    flex:1; background:#0c1128; border:2px solid var(--grid); color:var(--text-dim);
+    font-family:'Space Mono'; font-size:10px; text-transform:uppercase; letter-spacing:.5px;
+    padding:6px 4px; border-radius:6px; cursor:pointer; text-align:center;
+  }
+  .tab-btn.selected{ border-color:var(--cyan); color:var(--cyan); }
+  .class-badge{
+    display:inline-block; font-size:10px; color:var(--magenta); border:1px solid var(--magenta);
+    border-radius:4px; padding:2px 6px; margin-bottom:8px; letter-spacing:.5px;
+  }
+  .pin-btn{
+    flex-shrink:0; background:transparent; border:none; color:var(--text-dim); font-size:13px;
+    cursor:pointer; padding:0 2px; line-height:1;
+  }
+  .pin-btn.pinned{ color:var(--amber); }
+  .sidebar-row .s-diff{ font-size:9px; display:block; margin-top:1px; }
+  .sidebar-row .s-diff.up{ color:var(--danger); }
+  .sidebar-row .s-diff.down{ color:var(--ok); }
+  .login-preview{ font-size:11px; color:var(--text-dim); margin-top:6px; min-height:14px; }
+  .login-preview b{ color:var(--cyan); }
+
+  .mission-banner{
+    font-family:'Press Start 2P'; font-size:10px; color:var(--magenta); text-align:center;
+    letter-spacing:1px; margin-bottom:10px; text-shadow:0 0 6px rgba(247,74,173,0.4);
+  }
+  .t-sector{ font-size:10px; color:var(--magenta); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+
+  .over-heading{ text-align:center; font-size:18px; }
+  .over-heading.win{ color:var(--ok); }
+  .over-heading.lose{ color:var(--danger); }
+  .over-subtitle{ text-align:center; color:var(--text-dim); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; margin-top:6px; }
+
+  .rank-panel{
+    display:none; background:#0c1128; border:2px solid var(--grid); border-radius:8px;
+    padding:12px 14px; margin-top:14px;
+  }
+  .rank-panel.show{ display:block; }
+  .rank-row{ display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:5px 0; }
+  .rank-row b{ color:var(--amber); font-family:'Press Start 2P'; font-size:11px; }
+  .rank-row .rank-total{ color:var(--text-dim); font-family:'Space Mono'; font-size:10px; }
+  .rank-hint{ font-size:11px; color:var(--cyan); text-align:center; margin-top:8px; padding-top:8px; border-top:1px solid #1c2740; }
+
+  /* ---- v1.3: mute toggle ---- */
+  .mute-toggle{
+    display:flex; align-items:center; justify-content:center; gap:6px; width:100%;
+    background:#0c1128; border:2px solid var(--grid); color:var(--text-dim);
+    font-family:'Space Mono'; font-size:10px; text-transform:uppercase; letter-spacing:.5px;
+    padding:8px 6px; border-radius:6px; cursor:pointer; margin-bottom:10px;
+  }
+  .mute-toggle.on{ border-color:var(--cyan); color:var(--cyan); }
+  .mute-toggle.muted{ border-color:var(--text-dim); color:var(--text-dim); }
+
+  /* ---- v1.3: play-mode select cards ---- */
+  .playmode-row{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .playmode-card{
+    flex:1; min-width:190px; background:#0c1128; border:2px solid var(--grid); border-radius:8px;
+    padding:16px; cursor:pointer;
+  }
+  .playmode-card.selected{ border-color:var(--ok); box-shadow:0 0 0 2px rgba(56,242,160,0.25); }
+  .playmode-card .p-name{ font-family:'Press Start 2P'; font-size:12px; color:var(--text); margin-bottom:6px; }
+  .playmode-card.selected .p-name{ color:var(--ok); }
+  .playmode-card .p-desc{ font-size:11px; color:var(--text-dim); line-height:1.5; }
+
+  /* ---- v1.3: screen shake ---- */
+  .battle-scene.shake-scene{ animation: sceneShake .4s ease-in-out; }
+  @keyframes sceneShake{
+    10%,90%{ transform:translateX(-2px); }
+    20%,80%{ transform:translateX(4px); }
+    30%,50%,70%{ transform:translateX(-7px); }
+    40%,60%{ transform:translateX(7px); }
+  }
+
+  /* ---- v1.3: particle bursts ---- */
+  .particle{
+    position:absolute; width:5px; height:5px; border-radius:50%; pointer-events:none;
+    top:0; left:0; z-index:4; animation:particleBurst .6s ease-out forwards;
+  }
+  @keyframes particleBurst{
+    0%{ transform:translate(0,0) scale(1); opacity:1; }
+    100%{ transform:translate(var(--dx),var(--dy)) scale(.2); opacity:0; }
+  }
+
+  /* ---- v1.3: alien attack flicker ---- */
+  .alien.attack-flicker{ animation: alienFlicker .4s steps(2,jump-none); }
+  @keyframes alienFlicker{ 0%,100%{ opacity:1;} 25%,75%{ opacity:.25;} 50%{ opacity:1;} }
+
+  /* ---- v1.3: hull damage cracks on the player ship ---- */
+  .hull-cracks{ position:absolute; inset:0; pointer-events:none; }
+  .hull-cracks svg{ width:100%; height:100%; }
+  .hull-cracks .crack{ stroke:var(--danger); stroke-width:2; fill:none; opacity:0; filter:drop-shadow(0 0 3px var(--danger)); transition:opacity .25s ease; }
+  .hull-cracks.dmg-1 .crack-a{ opacity:.85; }
+  .hull-cracks.dmg-2 .crack-a{ opacity:1; }
+  .hull-cracks.dmg-2 .crack-b{ opacity:.85; }
+
+  /* ---- v1.3: distinguish friendly/enemy lasers by shape+size, not just color ---- */
+  .laser-bolt.fire-ally-blue, .laser-bolt.fire-ally-green{
+    width:32px; height:4px; border-radius:2px;
+    clip-path: polygon(0% 30%, 75% 30%, 75% 0%, 100% 50%, 75% 100%, 75% 70%, 0% 70%);
+  }
+  .laser-bolt.fire-enemy{
+    width:30px; height:11px; border-radius:0;
+    clip-path: polygon(0% 15%, 40% 0%, 55% 30%, 80% 5%, 100% 50%, 80% 95%, 55% 70%, 40% 100%, 0% 85%, 20% 50%);
+  }
+
+  /* ---- v1.3: Spot the Error mode ---- */
+  .spot-instructions{
+    font-size:11px; color:var(--amber); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; text-align:center;
+  }
+  .spot-token{
+    display:inline-block; cursor:pointer; border-bottom:2px dashed var(--cyan-dim); padding:1px 3px; margin:0 1px; border-radius:3px;
+    transition:.1s ease;
+  }
+  .spot-token:hover{ background:rgba(77,238,234,0.1); }
+  .spot-token.selected{ background:rgba(255,203,71,0.18); border-bottom-color:var(--amber); color:var(--amber); }
+  .spot-token.correct-catch{ background:rgba(56,242,160,0.2); border-bottom-color:var(--ok); color:var(--ok); }
+  .spot-token.missed{ background:rgba(255,77,94,0.2); border-bottom-color:var(--danger); color:var(--danger); }
+  .spot-token.false-positive{ background:rgba(255,77,94,0.12); border-bottom-color:var(--danger); text-decoration:line-through; }
+  .spot-token.locked{ cursor:default; }
+
+  /* ---- v1.4: combo / streak-decay indicator ---- */
+  .combo-badge{
+    display:inline-block; font-size:10px; color:var(--amber); margin-left:4px;
+    transition:transform .15s ease;
+  }
+  .combo-badge.pulse{ animation: comboPulse .4s ease; }
+  @keyframes comboPulse{
+    0%{ transform:scale(1); }
+    40%{ transform:scale(1.5); text-shadow:0 0 8px var(--amber); }
+    100%{ transform:scale(1); }
+  }
+  .combo-bar-wrap{ width:100%; height:4px; background:#0c1128; border-radius:2px; overflow:hidden; margin-bottom:8px; }
+  .combo-bar{ height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--amber)); transition:width .35s ease, background .35s ease; }
+  .combo-bar.shatter{ animation: comboShatter .5s ease forwards; }
+  @keyframes comboShatter{
+    0%{ opacity:1; }
+    50%{ background:var(--danger); }
+    100%{ width:0%; opacity:.6; }
+  }
+
+  /* ---- v1.4: custom CSV import + campaign banner ---- */
+  .btn-secondary{
+    background:#0c1128; border:2px solid var(--grid); color:var(--cyan);
+    font-family:'Space Mono'; font-size:11px; text-transform:uppercase; letter-spacing:.5px;
+    padding:8px 12px; border-radius:6px; cursor:pointer;
+  }
+  .btn-secondary:hover{ border-color:var(--cyan); }
+  .csv-import-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  #csv-import-status{ font-size:11px; color:var(--text-dim); }
+  .campaign-banner{
+    background:#0c1128; border:2px solid var(--cyan-dim); border-radius:8px;
+    padding:12px 16px; margin-bottom:14px; font-size:12px; color:var(--cyan);
+  }
+</style>
+</head>
+<body>
+<div id="stars"></div>
+<div id="crt"></div>
+<div id="vignette"></div>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-title">GALACTIC<br>LEADERBOARD</div>
+    <button type="button" class="mute-toggle" id="btn-mute">\uD83D\uDD0A Sound On</button>
+    <div class="sync-status" id="sync-status">\u25CF Checking sync\u2026</div>
+    <div class="class-badge hidden" id="class-badge"></div>
+    <div class="tab-row" id="scope-tabs">
+      <button type="button" class="tab-btn selected" data-scope="global">Global</button>
+      <button type="button" class="tab-btn" data-scope="class">My Class</button>
+      <button type="button" class="tab-btn" data-scope="friends">Friends</button>
+    </div>
+    <div class="tab-row" id="time-tabs">
+      <button type="button" class="tab-btn selected" data-time="week">This Week</button>
+      <button type="button" class="tab-btn" data-time="all">All-Time</button>
+    </div>
+    <select id="sidebar-filter">
+      <option value="all">All modes</option>
+      <option value="simplePast">Simple Past</option>
+      <option value="pastProgressive">Past Progressive</option>
+      <option value="pastPerfect">Past Perfect</option>
+      <option value="pastPerfectProgressive">Past Perfect Progressive</option>
+      <option value="mixed">Mixed</option>
+      <option value="infinite">Infinite runs only</option>
+    </select>
+    <div id="sidebar-body"></div>
+  </aside>
+
+  <div class="app">
+
+  <div class="title">SPEECH&nbsp;INVADERS</div>
+  <div class="subtitle">reported speech target practice</div>
+
+  <!-- LOGIN SCREEN -->
+  <div class="screen" id="screen-login">
+    <div class="panel">
+      <label for="name-input">Pilot callsign</label>
+      <input type="text" id="name-input" maxlength="40" placeholder="Enter your name, or name@ClassCode" autocomplete="off">
+      <div class="login-preview" id="login-preview"></div>
+      <div class="err" id="login-err"></div>
+      <div class="btn-row">
+        <button class="btn" id="btn-login">Enter The Arcade</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODE SELECT SCREEN -->
+  <div class="screen hidden" id="screen-mode">
+    <div class="campaign-banner hidden" id="campaign-banner"></div>
+    <div class="panel">
+      <label>Choose your target tense(s)</label>
+      <div class="grid-4" id="tense-grid"></div>
+    </div>
+    <div class="panel">
+      <label>Choose mission length</label>
+      <div class="length-row" id="length-row"></div>
+    </div>
+    <div class="panel">
+      <label>Choose practice style</label>
+      <div class="playmode-row" id="playmode-row"></div>
+    </div>
+    <div class="panel">
+      <label>Choose difficulty</label>
+      <div class="length-row" id="difficulty-row-select"></div>
+    </div>
+    <div class="panel">
+      <label>Teacher: upload a custom sentence set (optional)</label>
+      <div class="csv-import-row">
+        <input type="file" id="csv-file-input" accept=".csv,text/csv" class="hidden" />
+        <button type="button" class="btn-secondary" id="btn-csv-upload">Upload CSV</button>
+        <button type="button" class="btn-secondary" id="btn-csv-template">Download Template</button>
+        <span id="csv-import-status"></span>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-start">Launch Mission</button>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div class="screen hidden" id="screen-game">
+    <div class="panel">
+      <div class="mission-banner" id="mission-banner"></div>
+      <div class="hud">
+        <div>SCORE <b id="hud-score">0</b></div>
+        <div>STREAK <b id="hud-streak">0</b> <span class="combo-badge" id="combo-badge"></span></div>
+        <div class="lives" id="hud-lives"></div>
+        <div id="hud-progress">Q 1/20</div>
+      </div>
+      <div class="combo-bar-wrap"><div class="combo-bar" id="combo-bar"></div></div>
+      <div class="difficulty-row" id="hud-difficulty"></div>
+      <div class="timerbar-wrap"><div class="timerbar" id="timerbar"></div></div>
+
+      <div class="transmission">Incoming transmission —</div>
+      <div class="direct-quote" id="direct-quote"></div>
+
+      <div class="battle-scene" id="battle-scene">
+        <div class="ship-col">
+          <div class="shield-ring" id="shield-ring"></div>
+          <div class="ship-svg" id="ship-svg"></div>
+          <div class="hull-cracks" id="hull-cracks">
+            <svg viewBox="0 0 62 62"><path class="crack crack-a" d="M31 6 L27 22 L34 28 L24 40 L30 56"/><path class="crack crack-b" d="M14 20 L26 26 L20 38 L30 44"/></svg>
+          </div>
+          <div class="explosion-fx" id="ship-explosion">\uD83D\uDCA5</div>
+        </div>
+        <div class="battle-track">
+          <div class="laser-bolt" id="laser-bolt"></div>
+        </div>
+        <div class="alien-col">
+          <div class="boss-tag" id="boss-tag">\u2620 BOSS TARGET \u2620</div>
+          <div class="alien" id="alien">\uD83D\uDC7E</div>
+          <div class="explosion-fx" id="alien-explosion">\uD83D\uDCA5</div>
+        </div>
+      </div>
+
+      <div class="spot-instructions hidden" id="spot-instructions"></div>
+      <div class="bubble" id="bubble"></div>
+
+      <div class="feedback" id="feedback"></div>
+
+      <div class="explainer" id="explainer"></div>
+
+      <div class="btn-row" id="row-submit">
+        <button class="btn magenta" id="btn-submit">Fire! (Enter)</button>
+      </div>
+      <div class="btn-row hidden" id="row-next">
+        <button class="btn amber" id="btn-next">Next Wave \u2192 (Enter)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER SCREEN -->
+  <div class="screen hidden" id="screen-over">
+    <div class="panel">
+      <h2 class="over-heading" id="over-heading">MISSION OVER</h2>
+      <div class="over-subtitle" id="over-subtitle"></div>
+      <div class="stat-grid">
+        <div class="stat"><div class="v" id="final-score">0</div><div class="k">Score</div></div>
+        <div class="stat"><div class="v" id="final-accuracy">0%</div><div class="k">Accuracy</div></div>
+        <div class="stat"><div class="v" id="final-streak">0</div><div class="k">Best Streak</div></div>
+      </div>
+      <div class="rank-panel" id="rank-panel"></div>
+      <div class="sync-warning" id="sync-warning">\u26A0 Could not reach the shared leaderboard \u2014 this score was saved on this device only.</div>
+      <div class="practice-focus" id="practice-focus"></div>
+      <div class="btn-row">
+        <button class="btn" id="btn-again">Play Again</button>
+        <button class="btn secondary" id="btn-change-mode">Change Mode</button>
+        <button class="btn secondary" id="btn-export-csv">Export Results (CSV)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN CONSOLE (accessed via the "nebula-cipher-9" callsign) -->
+  <div class="screen hidden" id="screen-admin">
+    <div class="panel">
+      <h2 style="text-align:center;color:var(--danger);font-size:16px;">\u26A0 ADMIN CONSOLE \u26A0</h2>
+      <div class="admin-sub">Galactic Leaderboard \u2014 manual entry removal</div>
+      <div id="admin-list"></div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btn-admin-refresh">Refresh</button>
+        <button class="btn magenta" id="btn-admin-delete-all">Delete All Entries</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btn-admin-back">Log Out</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 style="text-align:center;color:var(--amber);font-size:16px;">\uD83D\uDCCA QUESTION ANALYTICS</h2>
+      <div class="admin-sub">Highest error rate first \u2014 across every pilot</div>
+      <div id="admin-analytics-list"></div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btn-analytics-refresh">Refresh</button>
+        <button class="btn magenta" id="btn-analytics-reset">Reset Analytics</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ DATA: VERB TABLE (30 verbs, exact principal parts) ============ */
+  const VERBS = [
+    {base:"work",   past:"worked",  part:"worked",  ger:"working",  obj:"on the project"},
+    {base:"watch",  past:"watched", part:"watched", ger:"watching", obj:"a movie"},
+    {base:"play",   past:"played",  part:"played",  ger:"playing",  obj:"the guitar"},
+    {base:"clean",  past:"cleaned", part:"cleaned", ger:"cleaning", obj:"the house"},
+    {base:"cook",   past:"cooked",  part:"cooked",  ger:"cooking",  obj:"dinner"},
+    {base:"study",  past:"studied", part:"studied", ger:"studying", obj:"for the test"},
+    {base:"visit",  past:"visited", part:"visited", ger:"visiting", obj:"her grandmother"},
+    {base:"paint",  past:"painted", part:"painted", ger:"painting", obj:"the fence"},
+    {base:"finish", past:"finished",part:"finished",ger:"finishing",obj:"the report"},
+    {base:"wash",   past:"washed",  part:"washed",  ger:"washing",  obj:"the car"},
+    {base:"call",   past:"called",  part:"called",  ger:"calling",  obj:"his brother"},
+    {base:"walk",   past:"walked",  part:"walked",  ger:"walking",  obj:"the dog"},
+    {base:"talk",   past:"talked",  part:"talked",  ger:"talking",  obj:"to the manager"},
+    {base:"help",   past:"helped",  part:"helped",  ger:"helping",  obj:"her neighbor"},
+    {base:"wait",   past:"waited",  part:"waited",  ger:"waiting",  obj:"for the bus"},
+    {base:"go",     past:"went",    part:"gone",    ger:"going",    obj:"to the market"},
+    {base:"eat",    past:"ate",     part:"eaten",   ger:"eating",   obj:"breakfast"},
+    {base:"write",  past:"wrote",   part:"written", ger:"writing",  obj:"a letter"},
+    {base:"read",   past:"read",    part:"read",    ger:"reading",  obj:"the newspaper"},
+    {base:"buy",    past:"bought",  part:"bought",  ger:"buying",   obj:"a new phone"},
+    {base:"see",    past:"saw",     part:"seen",    ger:"seeing",   obj:"the doctor"},
+    {base:"take",   past:"took",    part:"taken",   ger:"taking",   obj:"the exam"},
+    {base:"make",   past:"made",    part:"made",    ger:"making",   obj:"a cake"},
+    {base:"drive",  past:"drove",   part:"driven",  ger:"driving",  obj:"to the airport"},
+    {base:"run",    past:"ran",     part:"run",     ger:"running",  obj:"in the park"},
+    {base:"swim",   past:"swam",    part:"swum",    ger:"swimming", obj:"in the lake"},
+    {base:"sleep",  past:"slept",   part:"slept",   ger:"sleeping", obj:"for ten hours"},
+    {base:"bring",  past:"brought", part:"brought", ger:"bringing", obj:"her umbrella"},
+    {base:"teach",  past:"taught",  part:"taught",  ger:"teaching", obj:"the class"},
+    {base:"build",  past:"built",   part:"built",   ger:"building", obj:"a treehouse"},
+    {base:"listen", past:"listened",part:"listened",ger:"listening",obj:"to music"},
+    {base:"dance",  past:"danced",  part:"danced",  ger:"dancing",  obj:"at the party"},
+    {base:"sing",   past:"sang",    part:"sung",    ger:"singing",  obj:"a song"},
+    {base:"draw",   past:"drew",    part:"drawn",   ger:"drawing",  obj:"a picture"},
+    {base:"fix",    past:"fixed",   part:"fixed",   ger:"fixing",   obj:"the bike"},
+    {base:"plant",  past:"planted", part:"planted", ger:"planting", obj:"a tree"},
+    {base:"climb",  past:"climbed", part:"climbed", ger:"climbing", obj:"the mountain"},
+    {base:"throw",  past:"threw",   part:"thrown",  ger:"throwing", obj:"the ball"},
+    {base:"catch",  past:"caught",  part:"caught",  ger:"catching", obj:"a fish"},
+    {base:"ride",   past:"rode",    part:"ridden",  ger:"riding",   obj:"her bike"},
+    {base:"fly",    past:"flew",    part:"flown",   ger:"flying",   obj:"to London"},
+    {base:"break",  past:"broke",   part:"broken",  ger:"breaking", obj:"the window"},
+    {base:"speak",  past:"spoke",   part:"spoken",  ger:"speaking", obj:"to the class"},
+    {base:"choose", past:"chose",   part:"chosen",  ger:"choosing", obj:"a book"},
+    {base:"wear",   past:"wore",    part:"worn",    ger:"wearing",  obj:"a costume"},
+    {base:"feed",   past:"fed",     part:"fed",     ger:"feeding",  obj:"the cat"},
+    {base:"hide",   past:"hid",     part:"hidden",  ger:"hiding",   obj:"the keys"},
+    {base:"shop",   past:"shopped", part:"shopped", ger:"shopping", obj:"for groceries"},
+    {base:"fold",   past:"folded",  part:"folded",  ger:"folding",  obj:"the laundry"},
+    {base:"smile",  past:"smiled",  part:"smiled",  ger:"smiling",  obj:"at the camera"}
+  ];
+
+  const NAMES = [
+    {name:"Maya", g:"she"}, {name:"Daniel", g:"he"}, {name:"Priya", g:"she"},
+    {name:"Ethan", g:"he"}, {name:"Sophie", g:"she"}, {name:"Marcus", g:"he"},
+    {name:"Aisha", g:"she"}, {name:"Liam", g:"he"}, {name:"Grace", g:"she"}, {name:"Omar", g:"he"}
+  ];
+
+  const TIME_PRESENT = [
+    {word:"now", shift:["then"]},
+    {word:"today", shift:["that day"]},
+    {word:"this morning", shift:["that morning"]},
+    {word:"this afternoon", shift:["that afternoon"]},
+    {word:"this evening", shift:["that evening"]},
+    {word:"tonight", shift:["that night"]},
+    {word:"this week", shift:["that week"]}
+  ];
+  const TIME_PAST = [
+    {word:"yesterday", shift:["the day before","the previous day"]},
+    {word:"last night", shift:["the night before","the previous night"]},
+    {word:"last week", shift:["the week before","the previous week"]},
+    {word:"two days ago", shift:["two days before"]},
+    {word:"on Monday", shift:["on Monday"]},
+    {word:"earlier", shift:["earlier that day","earlier"]}
+  ];
+
+  // Every question, regardless of tense, reduces to the same 3-blank shape:
+  // [ pronoun ] [ verb-or-auxiliary backshift ] ... fixed object text ... [ time-shift ]
+  // parts is an ordered array of {type:'text', v} / {type:'blank', id, answer:[...alts]}
+  function buildBank(category){
+    const bank = [];
+    for(let i=0;i<VERBS.length;i++){
+      const v = VERBS[i];
+      const nm = NAMES[i % NAMES.length];
+      let t, direct, parts, compactParts;
+
+      let wrong; // v1.3: the classic *unshifted* forms used as seeded mistakes in Spot the Error
+
+      if(category === "simplePast"){
+        // No helping verb here \u2014 the single blank already is the whole
+        // backshifted verb, so the compact template is identical.
+        t = TIME_PRESENT[i % TIME_PRESENT.length];
+        // "read" is spelled the same in present and past tense, so flag
+        // which reading applies directly in the direct-speech quote.
+        const readTag = v.base === "read" ? " (present tense)" : "";
+        direct = nm.name + ' said, "I ' + v.base + readTag + ' ' + v.obj + ' ' + t.word + '."';
+        parts = [
+          {type:"text", v:nm.name + " said "},
+          {type:"blank", id:"pronoun", answer:[nm.g]},
+          {type:"text", v:" "},
+          {type:"blank", id:"verb", answer:[v.past]},
+          {type:"text", v:" " + v.obj + " "},
+          {type:"blank", id:"time", answer:t.shift},
+          {type:"text", v:"."}
+        ];
+        compactParts = parts;
+        wrong = {pronoun:"I", tense:v.base, time:t.word};
+      } else if(category === "pastProgressive"){
+        t = TIME_PRESENT[i % TIME_PRESENT.length];
+        direct = nm.name + ' said, "I am ' + v.ger + ' ' + v.obj + ' ' + t.word + '."';
+        parts = [
+          {type:"text", v:nm.name + " said "},
+          {type:"blank", id:"pronoun", answer:[nm.g]},
+          {type:"text", v:" "},
+          {type:"blank", id:"aux", answer:["was"]},
+          {type:"text", v:" " + v.ger + " " + v.obj + " "},
+          {type:"blank", id:"time", answer:t.shift},
+          {type:"text", v:"."}
+        ];
+        compactParts = [
+          {type:"text", v:nm.name + " said "},
+          {type:"blank", id:"pronoun", answer:[nm.g]},
+          {type:"text", v:" "},
+          {type:"blank", id:"verbaux", answer:["was " + v.ger]},
+          {type:"text", v:" " + v.obj + " "},
+          {type:"blank", id:"time", answer:t.shift},
+          {type:"text", v:"."}
+        ];
+        wrong = {pronoun:"I", tense:"is " + v.ger, time:t.word};
+      } else if(category === "pastPerfect"){
+        t = TIME_PAST[i % TIME_PAST.length];
+        // "read" is spelled the same in present and past tense, so flag
+        // which reading applies directly in the direct-speech quote.
+        const readTag = v.past === "read" ? " (past tense)" : "";
+        direct = nm.name + ' said, "I ' + v.past + readTag + ' ' + v.obj + ' ' + t.word + '."';
+        parts = [
+          {type:"text", v:nm.name + " said "},
+          {type:"blank", id:"pronoun", answer:[nm.g]},
+          {type:"text", v:" "},
+          {type:"blank", id:"aux", answer:["had"]},
+          {type:"text", v:" " + v.part + " " + v.obj + " "},
+          {type:"blank", id:"time", answer:t.shift},
+          {type:"text", v:"."}
+        ];
+        compactParts = [
+          {type:"text", v:nm.name + " said "},
+          {type:"blank", id:"pronoun", answer:[nm.g]},
+          {type:"text", v:" "},
+          {type:"blank", id:"verbaux", answer:["had " + v.part]},
+          {type:"text", v:" " + v.obj + " "},
+          {type:"blank", id:"time", answer:t.shift},
+          {type:"text", v:"."}
+        ];
+        wrong = {pronoun:"I", tense:v.past, time:t.word};
+      } else if(category === "pastPerfectProgressive"){
+        t = TIME_PAST[i % TIME_PAST.length];
+        direct = nm.name + ' said, "I was ' + v.ger + ' ' + v.obj + ' ' + t.word + '."';
+        parts = [
+          {type:"text", v:nm.name + " said "},
+          {type:"blank", id:"pronoun", answer:[nm.g]},
+          {type:"text", v:" "},
+          {type:"blank", id:"aux", answer:["had"]},
+          {type:"text", v:" been " + v.ger + " " + v.obj + " "},
+          {type:"blank", id:"time", answer:t.shift},
+          {type:"text", v:"."}
+        ];
+        compactParts = [
+          {type:"text", v:nm.name + " said "},
+          {type:"blank", id:"pronoun", answer:[nm.g]},
+          {type:"text", v:" "},
+          {type:"blank", id:"verbaux", answer:["had been " + v.ger]},
+          {type:"text", v:" " + v.obj + " "},
+          {type:"blank", id:"time", answer:t.shift},
+          {type:"text", v:"."}
+        ];
+        wrong = {pronoun:"I", tense:"was " + v.ger, time:t.word};
+      } else if(category === "reportedQuestions"){
+        // Yes/no question, backshifted the same way as Simple Past, but
+        // reported with "asked ... if" and no auxiliary "do/does".
+        t = TIME_PRESENT[i % TIME_PRESENT.length];
+        direct = "The officer asked " + nm.name + ', "Do you ' + v.base + ' ' + v.obj + ' ' + t.word + '?"';
+        parts = [
+          {type:"text", v:"The officer asked " + nm.name + " if "},
+          {type:"blank", id:"pronoun", answer:[nm.g]},
+          {type:"text", v:" "},
+          {type:"blank", id:"verb", answer:[v.past]},
+          {type:"text", v:" " + v.obj + " "},
+          {type:"blank", id:"time", answer:t.shift},
+          {type:"text", v:"."}
+        ];
+        compactParts = parts;
+        wrong = {pronoun:"you", tense:v.base, time:t.word};
+      } else { // reportedCommands
+        // Imperative \u2192 infinitive. No tense backshift happens here (a
+        // common overgeneralization mistake), and the pronoun swaps from
+        // subject (he/she) to object (him/her). ~35% negative commands.
+        t = TIME_PRESENT[i % TIME_PRESENT.length];
+        const neg = (i % 3 === 0);
+        const objPronoun = nm.g === "she" ? "her" : "him";
+        const cmdVerb = (neg ? "Don't " : "") + v.base;
+        direct = '"' + cmdVerb.charAt(0).toUpperCase() + cmdVerb.slice(1) + " " + v.obj + " " + t.word + '!" the officer told ' + nm.name + ".";
+        const infinitive = (neg ? "not to " : "to ") + v.base;
+        parts = [
+          {type:"text", v:"The officer told "},
+          {type:"blank", id:"pronoun", answer:[objPronoun]},
+          {type:"text", v:" "},
+          {type:"blank", id:"verb", answer:[infinitive]},
+          {type:"text", v:" " + v.obj + " "},
+          {type:"blank", id:"time", answer:t.shift},
+          {type:"text", v:"."}
+        ];
+        compactParts = parts;
+        // Classic mistakes: using the subject pronoun instead of the object
+        // pronoun, and wrongly backshifting the verb as if it were a
+        // statement (commands never backshift).
+        wrong = {pronoun: nm.g, tense: (neg ? "not " : "") + v.past, time:t.word};
+      }
+      bank.push({id: category + "_" + i, tense:category, direct, parts, compactParts, wrong});
+    }
+    return bank;
+  }
+
+  const TENSE_LABELS = {
+    simplePast:"Simple Past",
+    pastProgressive:"Past Progressive",
+    pastPerfect:"Past Perfect",
+    pastPerfectProgressive:"Past Perfect Progressive",
+    reportedQuestions:"Reported Questions",
+    reportedCommands:"Reported Commands",
+    custom:"Custom Set",
+    mixed:"Mixed"
+  };
+
+  /* ============ NARRATIVE WRAPPER: Galactic Grammar Defense ============
+     The Echo Fleet is corrupting communication transmissions across the
+     galaxy; the player is a Report Corps cadet restoring meaning sector by
+     sector. Purely a flavor layer over the existing tense/difficulty system
+     below \u2014 no gameplay data keys change, just how they're presented. */
+  const SECTOR_INFO = {
+    simplePast: {
+      name:"Moon of Recall",
+      brief:"Enemy transmissions are scrambling completed past events. Restore the reports and clear the sector."
+    },
+    pastProgressive: {
+      name:"Nebula of Ongoing Actions",
+      brief:"Echo Fleet static is blurring actions that were still in progress. Stabilize every transmission."
+    },
+    pastPerfect: {
+      name:"Archive Station",
+      brief:"Old records are being corrupted before they can be filed. Recover what happened first."
+    },
+    pastPerfectProgressive: {
+      name:"Time Rift Belt",
+      brief:"Long, ongoing actions from the deep past are leaking through the rift. Contain the distortion."
+    },
+    reportedQuestions: {
+      name:"Interrogation Outpost",
+      brief:"Captured transmissions are all questions \u2014 restore them into properly reported form."
+    },
+    reportedCommands: {
+      name:"Command Relay",
+      brief:"Orders barked across the fleet need reporting back to base, correctly and without embellishment."
+    },
+    custom: {
+      name:"Classroom Upload",
+      brief:"A custom transmission set uploaded by your instructor."
+    },
+    mixed: {
+      name:"Fractured Frontier",
+      brief:"All four Echo Fleet distortion types are converging here. Only a seasoned cadet can restore order."
+    }
+  };
+  const BOSS_NAMES = ["Commander Vrax","Warlord Kesh","Echo Marshal Thryn","Signal Baron Ozk","Commander Ithra","Overseer Malvex"];
+  function pickBossName(){ return BOSS_NAMES[Math.floor(Math.random() * BOSS_NAMES.length)]; }
+
+  const BANKS = {
+    simplePast: buildBank("simplePast"),
+    pastProgressive: buildBank("pastProgressive"),
+    pastPerfect: buildBank("pastPerfect"),
+    pastPerfectProgressive: buildBank("pastPerfectProgressive"),
+    reportedQuestions: buildBank("reportedQuestions"),
+    reportedCommands: buildBank("reportedCommands"),
+    custom: [] // v1.4: populated at runtime by the CSV importer, see importCustomCsv()
+  };
+
+  // id -> human-readable label (e.g. "Past Perfect \u2014 visit"), used only
+  // by the teacher-facing analytics table in the Admin Console.
+  const QUESTION_LABELS = {};
+  Object.keys(BANKS).forEach(function(cat){
+    BANKS[cat].forEach(function(q, i){
+      QUESTION_LABELS[q.id] = TENSE_LABELS[cat] + " \u2014 " + VERBS[i].base;
+    });
+  });
+
+  /* ============ PROFANITY FILTER ============ */
+  const BANNED = ["fuck","shit","bitch","asshole","bastard","dick","pussy","cunt",
+    "nigger","nigga","fag","faggot","slut","whore","cock","porn","rape","nazi","retard"];
+  function normalizeForFilter(s){
+    return s.toLowerCase()
+      .replace(/0/g,"o").replace(/1/g,"i").replace(/3/g,"e")
+      .replace(/4/g,"a").replace(/5/g,"s").replace(/7/g,"t")
+      .replace(/@/g,"a").replace(/\$/g,"s")
+      .replace(/[^a-z]/g,"");
+  }
+  function containsProfanity(name){
+    const n = normalizeForFilter(name);
+    return BANNED.some(w => n.includes(w));
+  }
+
+  // Same ISO-8601 week algorithm as the Worker (worker.js: isoWeek). Used
+  // client-side only to filter "This Week" locally; the Worker's own
+  // computation (from its own clock) is what actually gets stored, so this
+  // is a display/filtering convenience, not a source of truth.
+  function isoWeek(ts){
+    const d = new Date(ts);
+    const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const dayNum = (date.getUTCDay() + 6) % 7;
+    date.setUTCDate(date.getUTCDate() - dayNum + 3);
+    const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+    const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+    firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+    const weekNum = 1 + Math.round((date - firstThursday) / (7 * 24 * 3600 * 1000));
+    return date.getUTCFullYear() + "-W" + String(weekNum).padStart(2, "0");
+  }
+  function currentSeason(){ return isoWeek(Date.now()); }
+
+  /* ============ FRIENDS: pinned callsigns (device-local) ============
+     No server-side friendship concept \u2014 just a per-browser shortlist
+     (localStorage) used to filter the same public leaderboard data down to
+     "me + a few people I care about". See README for the tradeoffs. */
+  const PIN_KEY = "speechInvadersPins";
+  const MAX_PINS = 5;
+
+  function loadPins(){
+    try{
+      const raw = localStorage.getItem(PIN_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    }catch(e){
+      return [];
+    }
+  }
+  function savePins(list){
+    try{ localStorage.setItem(PIN_KEY, JSON.stringify(list)); }catch(e){ /* storage unavailable, pins just won't persist */ }
+  }
+  let pinnedCallsigns = loadPins();
+  function isPinned(name){
+    return pinnedCallsigns.some(function(p){ return p.toLowerCase() === String(name).toLowerCase(); });
+  }
+  function togglePin(name){
+    if(isPinned(name)){
+      pinnedCallsigns = pinnedCallsigns.filter(function(p){ return p.toLowerCase() !== name.toLowerCase(); });
+    } else {
+      if(pinnedCallsigns.length >= MAX_PINS){
+        alert("You can pin up to " + MAX_PINS + " callsigns \u2014 unpin one first.");
+        return;
+      }
+      pinnedCallsigns.push(name);
+    }
+    savePins(pinnedCallsigns);
+    renderSidebarBoard();
+  }
+
+  /* ============ BACKEND (Cloudflare Worker + KV, fully public) ============
+     This talks to a small Worker you deploy yourself (see the companion
+     worker.js / wrangler.toml / README shipped alongside this file). Reads
+     and score submissions are open to everyone \u2014 no login of any kind.
+     Deleting entries requires the admin secret, which is checked ON THE
+     SERVER (the Worker), not just in this client code, so it can't be
+     bypassed just by reading this file's source.
+
+     >>> REPLACE THIS with your deployed Worker's URL after `wrangler deploy` <<< */
+  const API_BASE = "https://galactic-leaderboard.tan-jianan-jeremy.workers.dev";
+
+  let memoryBoard = [];       // fallback so the app still works if the API is unreachable
+  let backendOnline = null;   // null = not checked yet, true/false after a check
+  let adminSecret = null;     // set only after a successful admin login this session
+
+  async function apiFetch(path, options){
+    const res = await fetch(API_BASE + path, Object.assign({
+      headers: { "Content-Type": "application/json" }
+    }, options || {}));
+    if(!res.ok){ throw new Error("HTTP " + res.status); }
+    return res.json();
+  }
+
+  async function loadBoard(){
+    try{
+      const data = await apiFetch("/api/leaderboard", { method: "GET" });
+      if(data && Array.isArray(data.entries)){
+        setBackendOnline(true);
+        return data.entries;
+      }
+      setBackendOnline(false);
+      return memoryBoard;
+    }catch(e){
+      setBackendOnline(false);
+      return memoryBoard;
+    }
+  }
+
+  // Submits one score, then re-fetches the board to confirm the entry the
+  // server assigned actually landed \u2014 not just that the POST didn't error.
+  async function submitScore(entry){
+    try{
+      const data = await apiFetch("/api/leaderboard", {
+        method: "POST",
+        body: JSON.stringify(entry)
+      });
+      if(!data || !data.ok || !data.entry || !data.entry.id){
+        setBackendOnline(false);
+        memoryBoard.push(entry);
+        return false;
+      }
+      const check = await apiFetch("/api/leaderboard", { method: "GET" });
+      const found = !!(check && Array.isArray(check.entries) && check.entries.some(function(e){ return e.id === data.entry.id; }));
+      setBackendOnline(found);
+      if(!found){ memoryBoard.push(entry); }
+      return found;
+    }catch(e){
+      setBackendOnline(false);
+      memoryBoard.push(entry);
+      return false;
+    }
+  }
+
+  async function apiDeleteEntry(id){
+    try{
+      const data = await apiFetch("/api/leaderboard/" + encodeURIComponent(id), {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "X-Admin-Secret": adminSecret || "" }
+      });
+      return !!(data && data.ok);
+    }catch(e){
+      return false;
+    }
+  }
+
+  async function apiDeleteAll(){
+    try{
+      const data = await apiFetch("/api/leaderboard", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "X-Admin-Secret": adminSecret || "" }
+      });
+      return !!(data && data.ok);
+    }catch(e){
+      return false;
+    }
+  }
+
+  // Logs one attempt at one question (id + tense + whether it was answered
+  // correctly) so the Admin Console can show teachers which questions the
+  // class is missing most. Best-effort only \u2014 a failed/offline post here
+  // should never interrupt gameplay, so callers don't await this.
+  async function submitAnalytics(id, tense, correct){
+    try{
+      await apiFetch("/api/analytics", {
+        method: "POST",
+        body: JSON.stringify({ id: id, tense: tense, correct: !!correct })
+      });
+    }catch(e){ /* best-effort telemetry only */ }
+  }
+
+  async function apiDeleteAnalytics(){
+    try{
+      const data = await apiFetch("/api/analytics", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "X-Admin-Secret": adminSecret || "" }
+      });
+      return !!(data && data.ok);
+    }catch(e){
+      return false;
+    }
+  }
+
+  // Lightweight round-trip to confirm the Worker is reachable, without
+  // touching the real leaderboard data.
+  async function checkBackendConnection(){
+    try{
+      const data = await apiFetch("/api/ping", { method: "GET" });
+      const ok = !!(data && data.ok);
+      setBackendOnline(ok);
+      return ok;
+    }catch(e){
+      setBackendOnline(false);
+      return false;
+    }
+  }
+
+  function setBackendOnline(ok){
+    backendOnline = ok;
+    const el = document.getElementById("sync-status");
+    if(!el) return;
+    if(ok){
+      el.className = "sync-status online";
+      el.textContent = "\u25CF Synced across devices";
+    } else {
+      el.className = "sync-status offline";
+      el.textContent = "\u25CF Local only \u2014 not synced";
+    }
+  }
+
+  // Legacy entries saved before ids existed fall back to their timestamp,
+  // which is unique enough in practice to target for deletion.
+  function entryKey(e){
+    return e.id || String(e.date);
+  }
+
+  /* ============ MISSION LENGTH OPTIONS ============ */
+  const LENGTH_OPTIONS = [
+    {key:"quick",     name:"Quick Run",     questions:5,  desc:"5 questions, 3 lives"},
+    {key:"standard",  name:"Standard Run",  questions:10, desc:"10 questions, 3 lives"},
+    {key:"extensive", name:"Extensive Run", questions:15, desc:"15 questions, 3 lives"},
+    {key:"infinite",  name:"Infinite Mode", questions:null, desc:"Runs until you lose all lives"}
+  ];
+  const LENGTH_LABELS = {quick:"Quick", standard:"Standard", extensive:"Extensive", infinite:"Infinite"};
+
+  /* ============ APP STATE ============ */
+  const state = {
+    playerName: "",
+    classCode: "",
+    selectedTenses: [],
+    lengthMode: "standard",
+    difficulty: "elite",
+    questionsTarget: 10,
+    pool: [],
+    poolIdx: 0,
+    score: 0,
+    streak: 0,
+    bestStreak: 0,
+    lives: 3,
+    correctCount: 0,
+    totalCount: 0,
+    current: null,
+    renderedParts: null,
+    renderDifficulty: "elite",
+    isBoss: false,
+    bossName: "",
+    timer: null,
+    timeLeft: 60,
+    timeMax: 60,
+    timerBudget: 60,
+    answering: false,
+    errorCounts: {pronoun:0, tense:0, time:0},
+    // v1.3
+    playMode: "fill",       // 'fill' | 'spot'
+    spotPhase: null,        // 'identify' | 'correct'
+    spotCorrupted: [],      // category ids actually seeded wrong this round
+    spotSelected: [],       // category ids the player has tapped as wrong
+    spotRenderList: null,   // token/text list built for the current spot round
+    muted: false,
+    // v1.4
+    categoryMissStreak: {pronoun:0, tense:0, time:0}, // consecutive misses per category, Veteran/Elite only
+    recapTense: null,       // set after a missed boss question; forces the next round to match
+    forceNoBossNext: false  // the forced recap round is never itself a boss
+  };
+
+  /* ============ DIFFICULTY TIERS ============
+     Every question is built from the same 7-slot template:
+       [0]text  [1]blank:pronoun  [2]text  [3]blank:verb/aux  [4]text  [5]blank:time  [6]text
+       Novice  - only the backshifted verb phrase is a blank (1 field)
+       Veteran - the verb phrase, plus either the pronoun or the time
+                 adverbial (chosen at random each question) (2 fields)
+       Elite   - only "Name said" is given; everything after it (pronoun,
+                 verb, object, time, and the closing period) is one large
+                 blank the pupil must type in full, e.g.
+                 "that she was teaching the class then."               */
+  const DIFFICULTY_INFO = {
+    novice:  {label:"Novice",  fields:1},
+    veteran: {label:"Veteran", fields:2},
+    elite:   {label:"Elite",   fields:1}
+  };
+
+  /* ============ v1.3: SCORE MULTIPLIER BY DIFFICULTY ============
+     Novice stays at the original rate; Veteran doubles it; Elite doubles
+     Veteran again (4x Novice). Applied to every point gain, in both
+     Grammar Practice and Spot the Error. */
+  const DIFFICULTY_SCORE_MULT = {novice:1, veteran:2, elite:4};
+
+  /* ============ v1.3: SPOT THE ERROR \u2014 mistakes per difficulty ============
+     Novice: 1 seeded mistake. Veteran: 2. Elite: 3 (every category wrong). */
+  const SPOT_MISTAKES = {novice:1, veteran:2, elite:3};
+  const SPOT_CATEGORIES = ["pronoun","tense","time"];
+  const SPOT_CATEGORY_LABEL = {pronoun:"pronoun", tense:"verb / tense", time:"time expression"};
+
+  /* ============ v1.3: PLAY MODE OPTIONS ============ */
+  const PLAY_MODE_OPTIONS = [
+    {key:"fill", name:"Grammar Practice", desc:"Fill in the blank(s) to build the reported sentence."},
+    {key:"spot", name:"Spot the Error", desc:"Find the seeded mistake(s) in a reported sentence, then fix them."}
+  ];
+
+  /* ============ v1.3: SOUND ENGINE (Web Audio API, no external files) ============ */
+  const MUTE_KEY = "speechInvadersMuted";
+  try{ state.muted = localStorage.getItem(MUTE_KEY) === "1"; }catch(e){ state.muted = false; }
+  let audioCtx = null;
+  function ensureAudioCtx(){
+    if(!audioCtx){
+      try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ audioCtx = null; }
+    }
+    if(audioCtx && audioCtx.state === "suspended"){ audioCtx.resume(); }
+    return audioCtx;
+  }
+  function playTone(freq, duration, type, startGain, freqEnd){
+    if(state.muted) return;
+    const ctx = ensureAudioCtx();
+    if(!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || "sine";
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    if(freqEnd){ osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), ctx.currentTime + duration); }
+    gain.gain.setValueAtTime(startGain, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  }
+  // Laser whoosh: a fast descending sawtooth chirp.
+  function sfxLaser(enemy){
+    playTone(enemy ? 720 : 1200, 0.16, "sawtooth", 0.06, enemy ? 160 : 240);
+  }
+  // Explosion: filtered white-noise burst.
+  function sfxExplosion(){
+    if(state.muted) return;
+    const ctx = ensureAudioCtx();
+    if(!ctx) return;
+    const dur = 0.4;
+    const bufferSize = Math.floor(ctx.sampleRate * dur);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++){ data[i] = (Math.random()*2-1) * Math.pow(1 - i/bufferSize, 2); }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(1400, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(70, ctx.currentTime + dur);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.35, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start();
+    noise.stop(ctx.currentTime + dur);
+  }
+  // Correct chime: two quick rising notes.
+  function sfxCorrect(){
+    playTone(660, 0.12, "triangle", 0.1);
+    setTimeout(function(){ playTone(880, 0.16, "triangle", 0.1); }, 90);
+  }
+  // Wrong chime: a low descending square-wave buzz.
+  function sfxWrong(){
+    playTone(220, 0.28, "square", 0.09, 80);
+  }
+  // Boss roar: three stacked, descending low tones.
+  function sfxBossRoar(){
+    if(state.muted) return;
+    [110, 90, 65].forEach(function(f, i){
+      setTimeout(function(){ playTone(f, 0.5, "sawtooth", 0.12, 35); }, i * 130);
+    });
+  }
+  // v1.4: each boss "speaks" a short synthesized Morse-style blip pattern
+  // derived from its own name, so every boss has a recognizable signature
+  // \u2014 still zero external audio files.
+  function morsePatternForName(name){
+    let pattern = "";
+    for(let i=0;i<name.length && pattern.length<7;i++){
+      const code = name.charCodeAt(i);
+      if(/[a-zA-Z]/.test(name[i])){ pattern += (code % 3 === 0) ? "-" : "."; }
+    }
+    return pattern || "...";
+  }
+  function sfxBossMorse(name){
+    if(state.muted) return;
+    const pattern = morsePatternForName(name);
+    let t = 0;
+    pattern.split("").forEach(function(sym){
+      const dur = sym === "-" ? 0.16 : 0.07;
+      setTimeout(function(){ playTone(560, dur, "square", 0.07); }, t * 1000);
+      t += dur + 0.06;
+    });
+  }
+  function updateMuteBtn(){
+    const b = document.getElementById("btn-mute");
+    if(!b) return;
+    b.textContent = state.muted ? "\uD83D\uDD07 Sound Off" : "\uD83D\uDD0A Sound On";
+    b.classList.toggle("muted", state.muted);
+    b.classList.toggle("on", !state.muted);
+  }
+  const btnMute = document.getElementById("btn-mute");
+  if(btnMute){
+    btnMute.addEventListener("click", function(){
+      state.muted = !state.muted;
+      try{ localStorage.setItem(MUTE_KEY, state.muted ? "1" : "0"); }catch(e){ /* storage unavailable */ }
+      if(!state.muted){ ensureAudioCtx(); }
+      updateMuteBtn();
+    });
+  }
+
+  /* ============ v1.3: SCREEN SHAKE + PARTICLE BURSTS ============ */
+  function screenShake(){
+    const scene = document.getElementById("battle-scene");
+    if(!scene) return;
+    scene.classList.remove("shake-scene");
+    void scene.offsetWidth; // restart animation every hit
+    scene.classList.add("shake-scene");
+  }
+  function burstParticles(targetEl, color, count){
+    const scene = document.getElementById("battle-scene");
+    if(!scene || !targetEl) return;
+    const sceneRect = scene.getBoundingClientRect();
+    const tRect = targetEl.getBoundingClientRect();
+    const originX = tRect.left - sceneRect.left + tRect.width/2;
+    const originY = tRect.top - sceneRect.top + tRect.height/2;
+    const n = count || 12;
+    for(let i=0;i<n;i++){
+      const p = document.createElement("div");
+      p.className = "particle";
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 18 + Math.random() * 42;
+      p.style.setProperty("--dx", (Math.cos(angle) * dist) + "px");
+      p.style.setProperty("--dy", (Math.sin(angle) * dist) + "px");
+      p.style.left = originX + "px";
+      p.style.top = originY + "px";
+      p.style.background = color;
+      scene.appendChild(p);
+      setTimeout(function(){ p.remove(); }, 650);
+    }
+  }
+
+  /* ============ v1.4: HULL DAMAGE STATE ============ */
+  function updateHullDamage(){
+    const el = document.getElementById("hull-cracks");
+    if(!el) return;
+    const lost = 3 - state.lives;
+    el.className = "hull-cracks" + (lost >= 1 ? " dmg-1" : "") + (lost >= 2 ? " dmg-2" : "");
+  }
+
+  /* ============ v1.4: COMBO / STREAK-DECAY INDICATOR ============ */
+  function flashComboIndicator(){
+    const badge = document.getElementById("combo-badge");
+    const bar = document.getElementById("combo-bar");
+    bar.classList.remove("shatter");
+    badge.classList.remove("pulse");
+    void badge.offsetWidth;
+    badge.classList.add("pulse");
+  }
+  function shatterComboIndicator(){
+    const bar = document.getElementById("combo-bar");
+    bar.classList.remove("shatter");
+    void bar.offsetWidth;
+    bar.classList.add("shatter");
+    setTimeout(function(){ bar.classList.remove("shatter"); bar.style.width = "0%"; }, 500);
+  }
+
+  /* ============ INVADER DESIGNS ============ */
+  const REGULAR_INVADERS = ["\uD83D\uDC7E","\uD83D\uDC7D","\uD83D\uDEF8","\uD83E\uDDA0","\uD83D\uDC19","\uD83E\uDD91"];
+  // Bosses appear every 5th question in Novice/Veteran and borrow the look
+  // (and difficulty) of the tier above.
+  const BOSS_INVADERS = ["\uD83D\uDC79","\uD83D\uDC7A","\uD83E\uDD16","\uD83D\uDC80","\uD83D\uDC09"];
+
+  function pickInvader(boss){
+    const list = boss ? BOSS_INVADERS : REGULAR_INVADERS;
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  /* ============ PLAYER SHIP DESIGNS ============
+     Five simple original silhouettes in the spirit of classic sci-fi
+     starfighters (a wing-splayed interceptor, a sleek needle-nosed fighter,
+     a sharp swept-wing wedge, a twin-pod gunship, and a round-cockpit
+     fighter with panel wings) \u2014 nose pointing right, toward the alien.
+     One is picked at random for each mission. All use currentColor so the
+     ship tints to match the arcade theme. */
+  const SHIPS = [
+    // "Wing Fighter" \u2014 four wings splayed in an X behind the nose
+    '<svg viewBox="0 0 100 50" class="ship-svg-inner"><rect x="8" y="20" width="18" height="10" fill="currentColor"/><polygon points="20,21 88,25 20,29" fill="currentColor"/><polygon points="8,20 40,4 46,10 20,24" fill="currentColor"/><polygon points="8,30 40,46 46,40 20,26" fill="currentColor"/><polygon points="26,20 46,6 50,10 30,24" fill="currentColor"/><polygon points="26,30 46,44 50,40 30,26" fill="currentColor"/></svg>',
+    // "Interceptor" \u2014 sleek needle-nosed body with a small ventral fin
+    '<svg viewBox="0 0 100 50" class="ship-svg-inner"><rect x="6" y="21" width="16" height="8" fill="currentColor"/><polygon points="15,22 92,25 15,28" fill="currentColor"/><polygon points="20,21 34,6 40,10 26,23" fill="currentColor"/><polygon points="20,29 34,44 40,40 26,27" fill="currentColor"/><polygon points="16,29 22,39 28,29" fill="currentColor"/></svg>',
+    // "A-Type Wedge" \u2014 compact body with sharply swept-back wings
+    '<svg viewBox="0 0 100 50" class="ship-svg-inner"><polygon points="25,20 90,25 25,30" fill="currentColor"/><polygon points="6,9 40,23 6,23" fill="currentColor"/><polygon points="6,41 40,27 6,27" fill="currentColor"/></svg>',
+    // "Y-Type Gunship" \u2014 twin engine pods on a connecting strut
+    '<svg viewBox="0 0 100 50" class="ship-svg-inner"><polygon points="30,22 86,25 30,28" fill="currentColor"/><rect x="10" y="6" width="34" height="9" fill="currentColor"/><rect x="10" y="35" width="34" height="9" fill="currentColor"/><rect x="26" y="15" width="6" height="20" fill="currentColor"/></svg>',
+    // "Round Fighter" \u2014 ball cockpit with panel wings top and bottom
+    '<svg viewBox="0 0 100 60" class="ship-svg-inner"><rect x="46" y="6" width="18" height="16" fill="currentColor"/><rect x="46" y="38" width="18" height="16" fill="currentColor"/><rect x="52" y="22" width="6" height="16" fill="currentColor"/><circle cx="55" cy="30" r="10" fill="none" stroke="currentColor" stroke-width="4"/><rect x="64" y="27" width="12" height="6" fill="currentColor"/></svg>'
+  ];
+
+  function pickShip(){
+    return SHIPS[Math.floor(Math.random() * SHIPS.length)];
+  }
+
+  // Bosses exist only in Novice and Veteran, on every 5th question, and use
+  // the difficulty tier one level above the player's chosen difficulty.
+  const BOSS_LEVEL_UP = {novice:"veteran", veteran:"elite"};
+
+  function isBossQuestion(){
+    if(state.playMode === "spot") return false; // v1.3: Spot the Error has its own difficulty curve (mistake count)
+    if(state.forceNoBossNext) return false; // v1.4: the forced recap round after a missed boss is never itself a boss
+    if(!BOSS_LEVEL_UP[state.difficulty]) return false; // Elite has no tier above it
+    return (state.totalCount + 1) % 5 === 0;
+  }
+
+  function effectiveDifficulty(boss){
+    return boss ? BOSS_LEVEL_UP[state.difficulty] : state.difficulty;
+  }
+
+  function toFilledText(part){
+    return {type:"text", v: part.answer[0]};
+  }
+
+  // Combine every part from `start` to the end of the template into one
+  // blank, whose accepted answers are every valid combination of the
+  // underlying blanks' alternatives joined by the literal text between them.
+  function mergeFromIndex(parts, start){
+    let combos = [""];
+    for(let i=start;i<parts.length;i++){
+      const seg = parts[i];
+      if(seg.type === "text"){
+        combos = combos.map(function(c){ return c + seg.v; });
+      } else {
+        const next = [];
+        combos.forEach(function(c){
+          seg.answer.forEach(function(a){ next.push(c + a); });
+        });
+        combos = next;
+      }
+    }
+    return {type:"blank", id:"full", answer: combos};
+  }
+
+  function buildRenderParts(question, difficulty){
+    if(difficulty === "elite"){
+      // Only "Name said " is shown; everything else is one big blank.
+      const parts = question.parts;
+      return [parts[0], mergeFromIndex(parts, 1)];
+    }
+    // Novice & Veteran use the compact template, where the helping verb and
+    // main verb are already merged into a single blank (e.g. "had eaten").
+    const parts = question.compactParts;
+    if(difficulty === "novice"){
+      // hide pronoun (idx 1) and time (idx 5); keep verb/aux (idx 3) blank
+      return [
+        parts[0], toFilledText(parts[1]), parts[2], parts[3], parts[4], toFilledText(parts[5]), parts[6]
+      ];
+    }
+    // veteran: verb/aux always blank; randomly keep pronoun OR time blank
+    const keepPronoun = Math.random() < 0.5;
+    return [
+      parts[0],
+      keepPronoun ? parts[1] : toFilledText(parts[1]),
+      parts[2],
+      parts[3],
+      parts[4],
+      keepPronoun ? toFilledText(parts[5]) : parts[5],
+      parts[6]
+    ];
+  }
+
+  /* ============ NAV HELPERS ============ */
+  function show(id){
+    ["screen-login","screen-mode","screen-game","screen-over","screen-admin"].forEach(function(s){
+      document.getElementById(s).classList.toggle("hidden", s !== id);
+    });
+  }
+
+  /* ============ LOGIN ============ */
+  const nameInput = document.getElementById("name-input");
+  const loginErr = document.getElementById("login-err");
+  const loginPreview = document.getElementById("login-preview");
+  // This same phrase must be set as the Worker's ADMIN_SECRET (see README).
+  // It gates the UI here, but the real enforcement happens server-side \u2014
+  // every delete call sends it and the Worker checks it before touching KV.
+  const ADMIN_CALLSIGN = "nebula-cipher-9";
+  const CLASS_CODE_RE = /^[A-Za-z0-9_-]{1,20}$/;
+
+  // Splits "Name@ClassCode" into its two parts. Everything after the first
+  // "@" is the class code; no "@" at all just means an ungrouped player.
+  function parseCallsign(raw){
+    const at = raw.indexOf("@");
+    if(at === -1) return { name: raw.trim(), classCode: "" };
+    return { name: raw.slice(0, at).trim(), classCode: raw.slice(at + 1).trim() };
+  }
+
+  nameInput.addEventListener("input", function(){
+    const raw = nameInput.value;
+    if(raw.indexOf("@") === -1 || !raw.trim()){ loginPreview.textContent = ""; return; }
+    const parsed = parseCallsign(raw);
+    if(!parsed.name){ loginPreview.textContent = ""; return; }
+    loginPreview.innerHTML = "Callsign: <b>" + escapeHtml(parsed.name) + "</b>" +
+      (parsed.classCode ? " \u00B7 Class: <b>" + escapeHtml(parsed.classCode.toUpperCase()) + "</b>" : "");
+  });
+
+  document.getElementById("btn-login").addEventListener("click", doLogin);
+  nameInput.addEventListener("keydown", function(e){ if(e.key === "Enter") doLogin(); });
+
+  function doLogin(){
+    const raw = nameInput.value.trim();
+    if(!raw){
+      loginErr.textContent = "Enter a callsign to continue.";
+      nameInput.classList.add("bad");
+      return;
+    }
+
+    if(raw.toLowerCase() === ADMIN_CALLSIGN){
+      loginErr.textContent = "";
+      nameInput.classList.remove("bad");
+      adminSecret = ADMIN_CALLSIGN;
+      nameInput.value = "";
+      loginPreview.textContent = "";
+      show("screen-admin");
+      renderAdminList();
+      renderAdminAnalytics();
+      return;
+    }
+
+    const parsed = parseCallsign(raw);
+    if(!parsed.name || parsed.name.length < 2){
+      loginErr.textContent = "Callsign must be at least 2 characters.";
+      nameInput.classList.add("bad");
+      return;
+    }
+    if(containsProfanity(parsed.name)){
+      loginErr.textContent = "That callsign isn't allowed here. Try another one.";
+      nameInput.classList.add("bad");
+      return;
+    }
+    if(parsed.classCode && !CLASS_CODE_RE.test(parsed.classCode)){
+      loginErr.textContent = "Class code can only use letters, numbers, - and _ (max 20 characters).";
+      nameInput.classList.add("bad");
+      return;
+    }
+    loginErr.textContent = "";
+    nameInput.classList.remove("bad");
+
+    state.playerName = parsed.name;
+    state.classCode = parsed.classCode ? parsed.classCode.toUpperCase() : "";
+    updateClassBadge();
+    renderSidebarBoard();
+    loadCampaign();
+    buildModeScreen();
+    show("screen-mode");
+  }
+
+  /* ============ v1.4: CAMPAIGN PERSISTENCE (per-device, localStorage) ============
+     Not a synced backend feature \u2014 just remembers a returning pupil's last
+     settings and progress on the browser they're using, so they don't have
+     to reconfigure every login. Keyed by callsign + class code. */
+  function campaignKey(){
+    return "speechInvadersCampaign_" + (state.playerName || "").toLowerCase() + "_" + (state.classCode || "").toLowerCase();
+  }
+  function loadCampaign(){
+    let data = null;
+    try{ data = JSON.parse(localStorage.getItem(campaignKey()) || "null"); }catch(e){ data = null; }
+    const banner = document.getElementById("campaign-banner");
+    if(!data){ banner.classList.add("hidden"); return; }
+    if(data.difficulty){ state.difficulty = data.difficulty; }
+    if(data.playMode){ state.playMode = data.playMode; }
+    if(Array.isArray(data.selectedTenses) && data.selectedTenses.length){ state.selectedTenses = data.selectedTenses.slice(); }
+    const missions = data.missionsCleared || 0;
+    banner.innerHTML = "\uD83D\uDCE1 Welcome back, <b>" + escapeHtml(state.playerName) + "</b> \u2014 resuming at <b>" +
+      DIFFICULTY_INFO[state.difficulty].label + "</b>" + (missions ? ", " + missions + " mission" + (missions > 1 ? "s" : "") + " cleared" : "") +
+      (data.bestScore ? ", personal best <b>" + data.bestScore + "</b>" : "") + ".";
+    banner.classList.remove("hidden");
+  }
+  function saveCampaign(finalDifficulty, wonMission){
+    let data = null;
+    try{ data = JSON.parse(localStorage.getItem(campaignKey()) || "null"); }catch(e){ data = null; }
+    if(!data) data = {missionsCleared:0, bestScore:0};
+    data.difficulty = finalDifficulty || state.difficulty;
+    data.playMode = state.playMode;
+    data.selectedTenses = state.selectedTenses.slice();
+    data.bestScore = Math.max(data.bestScore || 0, state.score);
+    if(wonMission) data.missionsCleared = (data.missionsCleared || 0) + 1;
+    data.lastPlayed = Date.now();
+    try{ localStorage.setItem(campaignKey(), JSON.stringify(data)); }catch(e){ /* storage unavailable */ }
+  }
+  const TENSE_DESCRIPTIONS = {
+    simplePast:"I work today. \u2192 He said he worked that day.",
+    pastProgressive:"I am watching now. \u2192 She said she was watching then.",
+    pastPerfect:"I visited yesterday. \u2192 He said he had visited the day before.",
+    pastPerfectProgressive:"I was studying last night. \u2192 She said she had been studying the night before.",
+    reportedQuestions:"\u201CDo you work now?\u201D \u2192 The officer asked if she worked then.",
+    reportedCommands:"\u201CClean the house!\u201D \u2192 The officer told her to clean the house.",
+    custom:"Your teacher's own uploaded sentence set.",
+    mixed:"A random blend of all the tenses above."
+  };
+
+  function buildModeScreen(){
+    const grid = document.getElementById("tense-grid");
+    grid.innerHTML = "";
+    const options = ["simplePast","pastProgressive","pastPerfect","pastPerfectProgressive","reportedQuestions","reportedCommands"];
+    if(BANKS.custom.length > 0){ options.push("custom"); }
+    options.push("mixed");
+    options.forEach(function(key){
+      const card = document.createElement("div");
+      card.className = "tense-card" + (state.selectedTenses.indexOf(key) !== -1 ? " selected" : "");
+      card.innerHTML = '<div class="t-name">' + TENSE_LABELS[key] + '</div><div class="t-sector">' + SECTOR_INFO[key].name + '</div><div class="t-desc">' + TENSE_DESCRIPTIONS[key] + '</div>';
+      card.addEventListener("click", function(){
+        if(key === "mixed"){
+          state.selectedTenses = state.selectedTenses.indexOf("mixed") !== -1 ? [] : ["mixed"];
+        } else {
+          state.selectedTenses = state.selectedTenses.filter(function(k){ return k !== "mixed"; });
+          if(state.selectedTenses.indexOf(key) !== -1){
+            state.selectedTenses = state.selectedTenses.filter(function(k){ return k !== key; });
+          } else {
+            state.selectedTenses.push(key);
+          }
+        }
+        buildModeScreen();
+      });
+      grid.appendChild(card);
+    });
+
+    const lengthRow = document.getElementById("length-row");
+    lengthRow.innerHTML = "";
+    LENGTH_OPTIONS.forEach(function(opt){
+      const card = document.createElement("div");
+      card.className = "length-card" + (state.lengthMode === opt.key ? " selected" : "");
+      card.innerHTML = '<div class="l-name">' + opt.name + '</div><div class="l-desc">' + opt.desc + '</div>';
+      card.addEventListener("click", function(){ state.lengthMode = opt.key; buildModeScreen(); });
+      lengthRow.appendChild(card);
+    });
+
+    const playmodeRow = document.getElementById("playmode-row");
+    playmodeRow.innerHTML = "";
+    PLAY_MODE_OPTIONS.forEach(function(opt){
+      const card = document.createElement("div");
+      card.className = "playmode-card" + (state.playMode === opt.key ? " selected" : "");
+      card.innerHTML = '<div class="p-name">' + opt.name + '</div><div class="p-desc">' + opt.desc + '</div>';
+      card.addEventListener("click", function(){ state.playMode = opt.key; buildModeScreen(); });
+      playmodeRow.appendChild(card);
+    });
+
+    const diffRow = document.getElementById("difficulty-row-select");
+    diffRow.innerHTML = "";
+    const diffOptions = state.playMode === "spot"
+      ? [
+          {key:"novice",  name:"Novice",  desc:"Spot 1 mistake, then fix it"},
+          {key:"veteran", name:"Veteran", desc:"Spot 2 mistakes, then fix them"},
+          {key:"elite",   name:"Elite",   desc:"Spot 3 mistakes, then fix them"}
+        ]
+      : [
+          {key:"novice",  name:"Novice",  desc:"1 field \u2014 just the backshifted verb"},
+          {key:"veteran", name:"Veteran", desc:"2 fields \u2014 verb, plus pronoun or time"},
+          {key:"elite",   name:"Elite",   desc:"1 field \u2014 type the entire reported clause"}
+        ];
+    diffOptions.forEach(function(opt){
+      const card = document.createElement("div");
+      card.className = "length-card" + (state.difficulty === opt.key ? " selected" : "");
+      card.innerHTML = '<div class="l-name">' + opt.name + '</div><div class="l-desc">' + opt.desc + '</div>';
+      card.addEventListener("click", function(){ state.difficulty = opt.key; buildModeScreen(); });
+      diffRow.appendChild(card);
+    });
+  }
+
+  document.getElementById("btn-start").addEventListener("click", function(){
+    if(state.selectedTenses.length === 0){
+      alert("Pick at least one tense (or Mixed) before launching.");
+      return;
+    }
+    startGame();
+  });
+  document.getElementById("btn-change-mode").addEventListener("click", function(){ buildModeScreen(); show("screen-mode"); });
+  document.getElementById("btn-again").addEventListener("click", function(){ startGame(); });
+
+  /* ============ v1.4: CUSTOM QUESTION CSV IMPORT ============
+     Lets a teacher add their own sentences with zero code editing.
+     Columns: tense,direct,template,pronoun,verb,time,wrongPronoun,wrongVerb,wrongTime
+     - tense: just a label shown as the mission name (e.g. "Unit 4 Set A")
+     - direct: the direct-speech line shown in the transmission log
+     - template: the reported sentence with {pronoun} {verb} {time} placeholders,
+       IN THAT ORDER, each appearing exactly once
+     - pronoun/verb/time: correct answer(s) \u2014 separate alternatives with "|"
+     - wrongPronoun/wrongVerb/wrongTime: OPTIONAL, only used by Spot the Error
+     A header row is auto-detected and skipped if the first cell reads "tense". */
+  function parseCsv(text){
+    const rows = [];
+    let i = 0, field = "", row = [], inQuotes = false;
+    const pushField = function(){ row.push(field); field = ""; };
+    const pushRow = function(){ pushField(); rows.push(row); row = []; };
+    while(i < text.length){
+      const c = text[i];
+      if(inQuotes){
+        if(c === '"'){
+          if(text[i+1] === '"'){ field += '"'; i += 2; continue; }
+          inQuotes = false; i++; continue;
+        }
+        field += c; i++; continue;
+      }
+      if(c === '"'){ inQuotes = true; i++; continue; }
+      if(c === ","){ pushField(); i++; continue; }
+      if(c === "\r"){ i++; continue; }
+      if(c === "\n"){ pushRow(); i++; continue; }
+      field += c; i++;
+    }
+    if(field.length || row.length){ pushRow(); }
+    return rows.filter(function(r){ return r.some(function(c){ return c && c.trim(); }); });
+  }
+
+  function importCustomCsv(text){
+    const rows = parseCsv(text);
+    if(rows.length === 0) return {added:0, errors:["The file appears to be empty."]};
+    const startIdx = (rows[0][0] || "").trim().toLowerCase() === "tense" ? 1 : 0;
+    const errors = [];
+    let added = 0;
+    for(let r=startIdx;r<rows.length;r++){
+      const row = rows[r];
+      const tenseLabel = (row[0] || "").trim();
+      const direct = (row[1] || "").trim();
+      const template = (row[2] || "").trim();
+      const pronounAns = (row[3] || "").trim();
+      const verbAns = (row[4] || "").trim();
+      const timeAns = (row[5] || "").trim();
+      const wrongPronoun = (row[6] || "").trim();
+      const wrongVerb = (row[7] || "").trim();
+      const wrongTime = (row[8] || "").trim();
+      if(!direct || !template || !pronounAns || !verbAns || !timeAns){
+        errors.push("Row " + (r+1) + ": missing a required field \u2014 skipped.");
+        continue;
+      }
+      const idxP = template.indexOf("{pronoun}");
+      const idxV = template.indexOf("{verb}", idxP + 1);
+      const idxT = template.indexOf("{time}", idxV + 1);
+      if(idxP === -1 || idxV === -1 || idxT === -1){
+        errors.push("Row " + (r+1) + ": template needs {pronoun}, {verb}, {time} in that order \u2014 skipped.");
+        continue;
+      }
+      const parts = [
+        {type:"text", v:template.slice(0, idxP)},
+        {type:"blank", id:"pronoun", answer: pronounAns.split("|").map(function(s){ return s.trim(); }).filter(Boolean)},
+        {type:"text", v:template.slice(idxP + 9, idxV)},
+        {type:"blank", id:"verb", answer: verbAns.split("|").map(function(s){ return s.trim(); }).filter(Boolean)},
+        {type:"text", v:template.slice(idxV + 6, idxT)},
+        {type:"blank", id:"time", answer: timeAns.split("|").map(function(s){ return s.trim(); }).filter(Boolean)},
+        {type:"text", v:template.slice(idxT + 6)}
+      ];
+      const wrong = {pronoun: wrongPronoun, tense: wrongVerb, time: wrongTime};
+      const qId = "custom_" + BANKS.custom.length;
+      BANKS.custom.push({id:qId, tense:"custom", direct:direct, parts:parts, compactParts:parts, wrong:wrong});
+      QUESTION_LABELS[qId] = (tenseLabel || "Custom") + " \u2014 row " + (r + 1);
+      added++;
+    }
+    return {added:added, errors:errors};
+  }
+
+  document.getElementById("btn-csv-upload").addEventListener("click", function(){
+    document.getElementById("csv-file-input").click();
+  });
+  document.getElementById("csv-file-input").addEventListener("change", function(e){
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(){
+      const result = importCustomCsv(String(reader.result || ""));
+      const status = document.getElementById("csv-import-status");
+      if(result.added > 0){
+        status.textContent = "\u2713 Added " + result.added + " custom question" + (result.added > 1 ? "s" : "") +
+          (result.errors.length ? " (" + result.errors.length + " row(s) skipped, check formatting)" : "");
+        status.style.color = "var(--ok)";
+        buildModeScreen(); // refresh so the "Custom Set" tense card appears
+      } else {
+        status.textContent = "No valid rows found. " + (result.errors[0] || "Check the template format.");
+        status.style.color = "var(--danger)";
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  });
+  document.getElementById("btn-csv-template").addEventListener("click", function(){
+    const csv = 'tense,direct,template,pronoun,verb,time,wrongPronoun,wrongVerb,wrongTime\r\n' +
+      '"Unit 4 Set A","Maya said, ""I feed the cat now.""","Maya said {pronoun} {verb} the cat {time}.","she","fed","then","I","feed","now"\r\n';
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "speech-invaders-custom-template.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  /* ============ GAME LOGIC ============ */
+  function shuffledPool(){
+    let src = [];
+    if(state.selectedTenses.indexOf("mixed") !== -1){
+      src = [].concat(
+        BANKS.simplePast, BANKS.pastProgressive, BANKS.pastPerfect, BANKS.pastPerfectProgressive,
+        BANKS.reportedQuestions, BANKS.reportedCommands, BANKS.custom
+      );
+    } else {
+      state.selectedTenses.forEach(function(k){ src = src.concat(BANKS[k]); });
+    }
+    const arr = src.slice();
+    for(let i=arr.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function startGame(){
+    state.score = 0;
+    state.streak = 0;
+    state.bestStreak = 0;
+    state.lives = 3;
+    state.correctCount = 0;
+    state.totalCount = 0;
+    state.timerBudget = 60;
+    state.errorCounts = {pronoun:0, tense:0, time:0};
+    state.categoryMissStreak = {pronoun:0, tense:0, time:0};
+    state.recapTense = null;
+    state.forceNoBossNext = false;
+    const opt = LENGTH_OPTIONS.find(function(o){ return o.key === state.lengthMode; });
+    if(opt && opt.questions){ state.questionsTarget = opt.questions; }
+    state.pool = shuffledPool();
+    state.poolIdx = 0;
+
+    const shipEl = document.getElementById("ship-svg");
+    shipEl.innerHTML = pickShip();
+    shipEl.classList.remove("shake", "destroyed");
+    document.getElementById("shield-ring").className = "shield-ring";
+    document.getElementById("ship-explosion").className = "explosion-fx";
+    document.getElementById("alien-explosion").className = "explosion-fx";
+    document.getElementById("alien").classList.remove("destroyed", "attack-flicker");
+    document.getElementById("hull-cracks").className = "hull-cracks";
+
+    show("screen-game");
+    nextQuestion();
+  }
+
+  function currentModeKey(){
+    return state.selectedTenses.indexOf("mixed") !== -1 ? "mixed" : state.selectedTenses.join("+");
+  }
+
+  // Timer starts at 60s, drops 5s after each correct answer (floor 30s),
+  // and resets to 60s the moment an answer is wrong or times out.
+  function timeBudget(){
+    return state.timerBudget;
+  }
+
+  function nextQuestion(){
+    if(state.lengthMode !== "infinite" && state.totalCount >= state.questionsTarget){
+      endGame();
+      return;
+    }
+    if(state.poolIdx >= state.pool.length){
+      state.pool = shuffledPool();
+      state.poolIdx = 0;
+    }
+
+    // v1.4: boss recap \u2014 if the last boss question was missed, force this
+    // round to match its tense (swap the next matching item in the pool to
+    // the front) instead of drawing whatever comes up next.
+    if(state.recapTense){
+      let swapIdx = -1;
+      for(let i=state.poolIdx;i<state.pool.length;i++){
+        if(state.pool[i].tense === state.recapTense){ swapIdx = i; break; }
+      }
+      if(swapIdx !== -1 && swapIdx !== state.poolIdx){
+        const tmp = state.pool[state.poolIdx];
+        state.pool[state.poolIdx] = state.pool[swapIdx];
+        state.pool[swapIdx] = tmp;
+      }
+      state.recapTense = null;
+    }
+
+    state.current = state.pool[state.poolIdx];
+    state.poolIdx = state.poolIdx + 1;
+    state.answering = true;
+    if(state.playMode === "spot"){
+      startSpotRound();
+    } else {
+      renderQuestion();
+      startTimer();
+    }
+    state.forceNoBossNext = false; // only suppresses the one round right after a missed boss
+  }
+
+  function renderHud(){
+    document.getElementById("hud-score").textContent = state.score;
+    document.getElementById("hud-streak").textContent = state.streak;
+    const modifierPct = state.streak * 10;
+    const badge = document.getElementById("combo-badge");
+    badge.textContent = state.streak > 1 ? "+" + modifierPct + "%" : "";
+    document.getElementById("combo-bar").style.width = Math.min(100, modifierPct) + "%";
+    const livesEl = document.getElementById("hud-lives");
+    livesEl.innerHTML = "";
+    for(let i=0;i<3;i++){
+      const d = document.createElement("div");
+      d.className = "life" + (i < state.lives ? "" : " lost");
+      d.textContent = "\u2764";
+      livesEl.appendChild(d);
+    }
+    const prog = document.getElementById("hud-progress");
+    prog.textContent = state.lengthMode === "infinite"
+      ? "Q " + (state.totalCount+1) + " / \u221E"
+      : "Q " + Math.min(state.totalCount+1, state.questionsTarget) + " / " + state.questionsTarget;
+  }
+
+  function typewriter(el, text){
+    el.innerHTML = "";
+    let i = 0;
+    const span = document.createElement("span");
+    el.appendChild(span);
+    const cursor = document.createElement("span");
+    cursor.className = "cursor";
+    cursor.textContent = "\u00A0";
+    el.appendChild(cursor);
+    const step = function(){
+      if(i <= text.length){
+        span.textContent = text.slice(0,i);
+        i++;
+        setTimeout(step, 12);
+      }
+    };
+    step();
+  }
+
+  function renderQuestion(){
+    document.getElementById("feedback").textContent = "";
+    document.getElementById("feedback").className = "feedback";
+    hideExplainer();
+    document.getElementById("row-next").classList.add("hidden");
+    document.getElementById("row-submit").classList.remove("hidden");
+    document.getElementById("spot-instructions").classList.add("hidden");
+    document.getElementById("btn-submit").textContent = "Fire! (Enter)";
+
+    const sector = SECTOR_INFO[state.current.tense] || SECTOR_INFO.mixed;
+    document.getElementById("mission-banner").textContent = "MISSION: " + sector.name.toUpperCase();
+
+    const boss = isBossQuestion();
+    state.isBoss = boss;
+    const renderDiff = effectiveDifficulty(boss);
+    state.renderDifficulty = renderDiff;
+
+    const alienEl = document.getElementById("alien");
+    alienEl.className = "alien" + (boss ? " boss" : "");
+    alienEl.textContent = pickInvader(boss);
+
+    const bossTag = document.getElementById("boss-tag");
+    bossTag.classList.toggle("show", boss);
+    if(boss){
+      state.bossName = pickBossName();
+      bossTag.textContent = "\u2620 " + state.bossName + " DETECTED \u2620";
+      sfxBossRoar();
+      setTimeout(function(){ sfxBossMorse(state.bossName); }, 550);
+    }
+
+    typewriter(document.getElementById("direct-quote"), state.current.direct);
+
+    state.renderedParts = buildRenderParts(state.current, renderDiff);
+
+    const bubble = document.getElementById("bubble");
+    bubble.classList.toggle("boss", boss);
+    bubble.innerHTML = "";
+    state.renderedParts.forEach(function(p, idx){
+      if(p.type === "text"){
+        bubble.appendChild(document.createTextNode(p.v));
+      } else {
+        const input = document.createElement("input");
+        input.type = "text";
+        const widthClass = renderDiff === "elite" ? " xwide" : (idx === 3 || idx === 5 ? " wide" : "");
+        input.className = "blank" + widthClass;
+        input.dataset.idx = String(idx);
+        input.autocomplete = "off";
+        input.spellcheck = false;
+        input.addEventListener("keydown", function(e){
+          if(e.key === "Enter") checkAnswer();
+        });
+        bubble.appendChild(input);
+      }
+    });
+
+    const info = DIFFICULTY_INFO[renderDiff];
+    const chip = document.getElementById("hud-difficulty");
+    const chipText = info.label.toUpperCase() + ' \u2022 ' + info.fields + ' FIELD' + (info.fields > 1 ? "S" : "");
+    chip.innerHTML = boss
+      ? '<span class="difficulty-chip" style="color:var(--danger);border-color:var(--danger);">BOSS \u2014 ' + chipText + '</span>'
+      : '<span class="difficulty-chip">' + chipText + '</span>';
+
+    renderHud();
+    const firstBlank = bubble.querySelector(".blank");
+    if(firstBlank){ setTimeout(function(){ firstBlank.focus(); }, 50); }
+  }
+
+  function startTimer(){
+    clearInterval(state.timer);
+    state.timeMax = timeBudget();
+    state.timeLeft = state.timeMax;
+    updateTimerBar();
+    state.timer = setInterval(function(){
+      state.timeLeft -= 0.1;
+      updateTimerBar();
+      if(state.timeLeft <= 0){
+        clearInterval(state.timer);
+        if(state.answering){
+          if(state.playMode === "spot"){
+            if(state.spotPhase === "identify"){ resolveSpotIdentify(true); }
+            else { resolveSpotCorrection(true); }
+          } else {
+            resolveQuestion(true);
+          }
+        }
+      }
+    }, 100);
+  }
+
+  function updateTimerBar(){
+    const bar = document.getElementById("timerbar");
+    const pct = Math.max(0, (state.timeLeft/state.timeMax)*100);
+    bar.style.width = pct + "%";
+    bar.classList.toggle("warn", pct < 30);
+  }
+
+  function normalize(s){
+    return s.trim().toLowerCase().replace(/\s+/g," ").replace(/[.,!]/g,"");
+  }
+
+  // "Maya said she worked..." and "Maya said that she worked..." are both
+  // correct reported speech. Since "that" would be typed at the very start
+  // of the first blank in the sentence (right after the fixed "said "),
+  // strip an optional leading "that" before comparing that blank's answer.
+  function stripLeadingThat(s){
+    return s.replace(/^that\s+/, "");
+  }
+
+  /* ============ MISS EXPLANATIONS + ERROR-PATTERN TRACKING ============ */
+
+  // Maps a blank's semantic id (set when the question template was built)
+  // to one of the three tracked error-pattern categories.
+  function categoryForBlankId(id){
+    if(id === "pronoun") return "pronoun";
+    if(id === "verb" || id === "aux" || id === "verbaux") return "tense";
+    if(id === "time") return "time";
+    return null;
+  }
+
+  /* ============ v1.4: ADAPTIVE DIFFICULTY (Veteran & Elite only) ============
+     Missing the SAME category two rounds in a row \u2014 not just any two
+     misses \u2014 drops the player one tier: Elite \u2192 Veteran, Veteran \u2192 Novice.
+     A correct answer on a shown category resets that category's streak.
+     Returns {from, to} if a drop just happened, otherwise null. */
+  function applyAdaptiveDifficulty(shownCats, missedCats){
+    if(state.difficulty !== "veteran" && state.difficulty !== "elite") return null;
+    const missedSet = new Set(missedCats);
+    let willDrop = false;
+    Array.from(new Set(shownCats)).forEach(function(cat){
+      if(missedSet.has(cat)){
+        state.categoryMissStreak[cat] = (state.categoryMissStreak[cat] || 0) + 1;
+        if(state.categoryMissStreak[cat] >= 2) willDrop = true;
+      } else {
+        state.categoryMissStreak[cat] = 0;
+      }
+    });
+    if(!willDrop) return null;
+    const from = state.difficulty;
+    state.difficulty = (state.difficulty === "elite") ? "veteran" : "novice";
+    state.categoryMissStreak = {pronoun:0, tense:0, time:0};
+    return {from: from, to: state.difficulty};
+  }
+
+  const TENSE_BACKSHIFT_EXPLAIN = {
+    simplePast: "the present-tense verb backshifts one step to simple past",
+    pastProgressive: "'am/is' backshifts to 'was' (past progressive)",
+    pastPerfect: "the simple past backshifts one step further, to past perfect ('had' + past participle)",
+    pastPerfectProgressive: "past progressive backshifts to past perfect progressive ('had been' + '-ing')",
+    reportedQuestions: "the question backshifts just like a statement \u2014 present simple becomes simple past, with no 'do/does' and normal subject-verb order",
+    reportedCommands: "commands don't backshift at all \u2014 the verb simply becomes 'to' + base form"
+  };
+
+  // One-line explanation for a single missed blank (Novice/Veteran, and
+  // Simple Past's single verb blank).
+  function explainBlank(question, catId, part){
+    if(catId === "pronoun"){
+      if(question.tense === "reportedCommands"){
+        return "Commands address someone directly, so the reported pronoun is an <b>object</b> pronoun \u2014 \u2018<b>" + part.answer[0] + "</b>\u2019, not a subject pronoun.";
+      }
+      if(question.tense === "reportedQuestions"){
+        return "\u2018You\u2019 in the direct question refers to " + question.direct.match(/asked (\w+)/)[1] + ", so it becomes \u2018<b>" + part.answer[0] + "</b>\u2019 in the report.";
+      }
+      const speaker = question.direct.split(" ")[0];
+      return "\u2018I\u2019 in " + speaker + "\u2019s own words becomes \u2018<b>" + part.answer[0] + "</b>\u2019 when someone else reports it.";
+    }
+    if(catId === "time"){
+      return "Because the report happens later, the time word shifts to \u2018<b>" + part.answer[0] + "</b>\u2019.";
+    }
+    if(catId === "tense"){
+      const rule = TENSE_BACKSHIFT_EXPLAIN[question.tense] || "the verb backshifts";
+      return "Because \u2018said\u2019 is past, " + rule + " \u2014 \u2018<b>" + part.answer[0] + "</b>\u2019.";
+    }
+    return "";
+  }
+
+  // One combined explanation for Elite's single merged blank, since we
+  // can't cleanly attribute one wrong keystroke to one sub-rule.
+  function explainFull(question){
+    const p = question.parts;
+    const pronounAns = p[1].answer[0];
+    const verbAns = p[3].answer[0];
+    const timeAns = p[5].answer[0];
+    const rule = TENSE_BACKSHIFT_EXPLAIN[question.tense] || "the verb backshifts";
+    if(question.tense === "reportedCommands"){
+      return "Reported commands use an object pronoun (\u2018<b>" + pronounAns + "</b>\u2019) and " + rule +
+        " (\u2018<b>" + verbAns + "</b>\u2019); the time word still shifts to \u2018<b>" + timeAns + "</b>\u2019.";
+    }
+    return "Because \u2018said\u2019 is past: \u2018I\u2019 \u2192 \u2018<b>" + pronounAns + "</b>\u2019, " + rule +
+      " (\u2018<b>" + verbAns + "</b>\u2019), and the time word shifts to \u2018<b>" + timeAns + "</b>\u2019.";
+  }
+
+  // Elite merges pronoun+verb+time into one blank, so to log which pattern(s)
+  // tripped the player up we check whether each expected fragment shows up
+  // anywhere in what they typed. Approximate, but good enough to spot trends.
+  function detectEliteErrorCategories(question, userNorm){
+    const p = question.parts;
+    const cats = [];
+    if(userNorm.indexOf(normalize(p[1].answer[0])) === -1) cats.push("pronoun");
+    if(userNorm.indexOf(normalize(p[3].answer[0])) === -1) cats.push("tense");
+    const timeOk = p[5].answer.some(function(a){ return userNorm.indexOf(normalize(a)) !== -1; });
+    if(!timeOk) cats.push("time");
+    if(cats.length === 0) cats.push("tense"); // something else was off (e.g. the object text)
+    return cats;
+  }
+
+  function renderExplainer(lines){
+    const el = document.getElementById("explainer");
+    if(lines.length === 0){ el.classList.remove("show"); el.innerHTML = ""; return; }
+    el.innerHTML = lines.map(function(line){
+      return '<div class="explain-line">' + line + '</div>';
+    }).join("");
+    el.classList.add("show");
+  }
+
+  function hideExplainer(){
+    const el = document.getElementById("explainer");
+    el.classList.remove("show");
+    el.innerHTML = "";
+  }
+
+  document.getElementById("btn-submit").addEventListener("click", checkAnswer);
+
+  function checkAnswer(){
+    if(!state.answering) return;
+    if(state.playMode === "spot"){
+      if(state.spotPhase === "identify"){ resolveSpotIdentify(false); }
+      else { resolveSpotCorrection(false); }
+      return;
+    }
+    resolveQuestion(false);
+  }
+
+  function resolveQuestion(timedOut){
+    state.answering = false;
+    clearInterval(state.timer);
+    const bubble = document.getElementById("bubble");
+    const inputs = bubble.querySelectorAll(".blank");
+    const question = state.current;
+    let allCorrect = true;
+    const explainLines = [];
+    const missedCats = [];
+    const shownCats = [];
+    inputs.forEach(function(inp){
+      const idx = Number(inp.dataset.idx);
+      const part = state.renderedParts[idx];
+      const val = normalize(inp.value || "");
+      // "that" can only sensibly appear right before the pronoun (slot 1,
+      // immediately after the fixed "said "). If the pronoun blank isn't
+      // shown (Novice, or Veteran with time kept instead), this never fires.
+      const valNoThat = idx === 1 ? stripLeadingThat(val) : val;
+      const ok = part.answer.some(function(a){
+        const na = normalize(a);
+        return na === val || na === valNoThat;
+      });
+      inp.classList.add(ok ? "correct" : "incorrect");
+      inp.disabled = true;
+      if(part.id === "full"){
+        shownCats.push("pronoun", "tense", "time");
+      } else {
+        const shownCat = categoryForBlankId(part.id);
+        if(shownCat) shownCats.push(shownCat);
+      }
+      if(!ok){
+        allCorrect = false;
+        const reveal = document.createElement("span");
+        reveal.className = "reveal";
+        reveal.textContent = "correct: " + part.answer[0];
+        inp.insertAdjacentElement("afterend", reveal);
+
+        if(part.id === "full"){
+          explainLines.push(explainFull(question));
+          missedCats.push.apply(missedCats, detectEliteErrorCategories(question, valNoThat || val));
+        } else {
+          const cat = categoryForBlankId(part.id);
+          if(cat){
+            explainLines.push(explainBlank(question, cat, part));
+            missedCats.push(cat);
+          }
+        }
+      }
+    });
+    if(timedOut) allCorrect = false;
+
+    state.totalCount++;
+    const fb = document.getElementById("feedback");
+
+    // Best-effort telemetry for the teacher-facing per-question analytics.
+    submitAnalytics(question.id, question.tense, allCorrect);
+
+    if(allCorrect){
+      state.correctCount++;
+      state.streak++;
+      state.bestStreak = Math.max(state.bestStreak, state.streak);
+      const timeBonus = Math.round(Math.max(0, state.timeLeft) * 5);
+      const baseGain = 100 + timeBonus;
+      const modifierPct = state.streak * 10; // 10% per streak
+      const gain = Math.round(baseGain * (1 + modifierPct / 100) * DIFFICULTY_SCORE_MULT[state.difficulty]);
+      state.score += gain;
+      fb.textContent = "TARGET DESTROYED  +" + gain +
+        (state.streak > 1 ? "\nSTREAK x" + state.streak + " \u2192 +" + modifierPct + "%" : "");
+      fb.className = "feedback ok";
+      state.timerBudget = Math.max(30, state.timerBudget - 5);
+
+      applyAdaptiveDifficulty(shownCats, []); // resets consecutive-miss streaks for the categories just nailed
+      flashComboIndicator();
+      sfxCorrect();
+      fireLaserAlly();
+      setTimeout(triggerAlienExplosion, 420);
+      renderHud();
+
+      setTimeout(function(){
+        if(state.lives <= 0){ endGame(); } else { nextQuestion(); }
+      }, 1300);
+    } else {
+      state.streak = 0;
+      shatterComboIndicator();
+      const damage = state.isBoss ? 2 : 1;
+      state.lives = Math.max(0, state.lives - damage);
+      const hitLabel = timedOut ? "TOO SLOW" : "INCORRECT";
+      fb.textContent = state.isBoss ? state.bossName.toUpperCase() + " \u2014 " + hitLabel + " \u2014 DOUBLE DAMAGE \u2014 SHIELDS -" + damage : hitLabel + " \u2014 SHIELDS HIT";
+      fb.className = "feedback bad";
+      state.timerBudget = 60;
+      sfxWrong();
+
+      // v1.4: if this was a boss question, force the very next round to
+      // revisit the same tense so a win doesn't paper over the gap.
+      if(state.isBoss){
+        state.recapTense = question.tense;
+        state.forceNoBossNext = true;
+      }
+
+      // Log which grammar pattern(s) this miss touched on, for the
+      // game-over "practice focus" tip.
+      Array.from(new Set(missedCats)).forEach(function(cat){
+        state.errorCounts[cat] = (state.errorCounts[cat] || 0) + 1;
+      });
+
+      // v1.4: Veteran/Elite adaptive difficulty \u2014 two consecutive misses
+      // on the same category drops a tier.
+      const drop = applyAdaptiveDifficulty(shownCats, missedCats);
+      if(drop){
+        fb.textContent += "\n\u26A0 DIFFICULTY ADJUSTED: " + DIFFICULTY_INFO[drop.from].label.toUpperCase() +
+          " \u2192 " + DIFFICULTY_INFO[drop.to].label.toUpperCase();
+      }
+
+      renderExplainer(explainLines);
+
+      fireLaserEnemy();
+      const livesDepleted = state.lives <= 0;
+      setTimeout(function(){
+        if(livesDepleted){ triggerShipExplosion(); } else { triggerShieldHit(); }
+      }, 420);
+      renderHud();
+
+      // Hold here \u2014 correct answer + explanation stay up until the
+      // player clicks through, instead of auto-advancing after 5s.
+      showNextWave(livesDepleted);
+    }
+  }
+
+  // Swaps the Fire button out for a Next Wave button and waits for a click
+  // (or Enter) before moving on, so the teaching moment isn't lost to a
+  // timer. Label changes to "See Results" once the mission is actually over.
+  function showNextWave(livesDepleted){
+    const rowSubmit = document.getElementById("row-submit");
+    const rowNext = document.getElementById("row-next");
+    const btnNext = document.getElementById("btn-next");
+    rowSubmit.classList.add("hidden");
+    rowNext.classList.remove("hidden");
+    btnNext.textContent = livesDepleted ? "See Results (Enter)" : "Next Wave \u2192 (Enter)";
+    btnNext.onclick = function(){
+      rowNext.classList.add("hidden");
+      rowSubmit.classList.remove("hidden");
+      hideExplainer();
+      if(livesDepleted){ endGame(); } else { nextQuestion(); }
+    };
+    setTimeout(function(){ btnNext.focus(); }, 50);
+  }
+
+  /* ============ v1.3: SPOT THE ERROR MODE ============
+     Two phases per round:
+       1) IDENTIFY \u2014 the sentence is shown with N seeded mistakes (Novice 1,
+          Veteran 2, Elite 3), each mistake being the classic unshifted form
+          of the pronoun, verb/aux tense, or time expression. The pupil taps
+          the part(s) they believe are wrong. Getting the exact set right
+          scores points; getting it wrong (or timing out) costs a life.
+       2) CORRECT \u2014 either way, the pupil is then asked to type the correct
+          replacement for every part that really was wrong. */
+
+  function compactIdxForCat(cat){
+    return cat === "pronoun" ? 1 : (cat === "tense" ? 3 : 5);
+  }
+
+  function buildSpotRound(question, difficulty){
+    const n = SPOT_MISTAKES[difficulty] || 1;
+    // v1.4: only corrupt categories that actually have a usable seeded
+    // "wrong" value \u2014 matters for custom-imported questions where a
+    // teacher may have left one of the optional wrong* columns blank.
+    // Fall back to a generic (less tailored) mistake set if none exist,
+    // rather than asking the pupil to spot zero mistakes.
+    const wrongValues = (question.wrong && SPOT_CATEGORIES.some(function(c){ return !!question.wrong[c]; }))
+      ? question.wrong
+      : {pronoun:"I", tense:"(unshifted form)", time:"now"};
+    const available = SPOT_CATEGORIES.filter(function(cat){ return !!wrongValues[cat]; });
+    const cats = available.slice();
+    for(let i=cats.length-1;i>0;i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = cats[i]; cats[i] = cats[j]; cats[j] = tmp;
+    }
+    const corrupted = cats.slice(0, Math.min(n, cats.length));
+    const parts = question.compactParts;
+    const renderList = parts.map(function(p, idx){
+      if(p.type === "text") return {type:"text", v:p.v};
+      const cat = idx === 1 ? "pronoun" : (idx === 3 ? "tense" : "time");
+      const isWrong = corrupted.indexOf(cat) !== -1;
+      const value = isWrong ? wrongValues[cat] : p.answer[0];
+      return {type:"token", cat:cat, value:value, isWrong:isWrong};
+    });
+    return {renderList: renderList, corrupted: corrupted};
+  }
+
+  function startSpotRound(){
+    document.getElementById("feedback").textContent = "";
+    document.getElementById("feedback").className = "feedback";
+    hideExplainer();
+    document.getElementById("row-next").classList.add("hidden");
+    document.getElementById("row-submit").classList.remove("hidden");
+
+    state.isBoss = false;
+    state.renderDifficulty = state.difficulty;
+
+    const sector = SECTOR_INFO[state.current.tense] || SECTOR_INFO.mixed;
+    document.getElementById("mission-banner").textContent = "MISSION: " + sector.name.toUpperCase();
+
+    const alienEl = document.getElementById("alien");
+    alienEl.className = "alien";
+    alienEl.textContent = pickInvader(false);
+    document.getElementById("boss-tag").classList.remove("show");
+
+    typewriter(document.getElementById("direct-quote"), state.current.direct);
+
+    const built = buildSpotRound(state.current, state.difficulty);
+    state.spotRenderList = built.renderList;
+    state.spotCorrupted = built.corrupted;
+    state.spotSelected = [];
+    state.spotPhase = "identify";
+
+    const chip = document.getElementById("hud-difficulty");
+    chip.innerHTML = '<span class="difficulty-chip">' + DIFFICULTY_INFO[state.difficulty].label.toUpperCase() +
+      ' \u2022 SPOT ' + state.spotCorrupted.length + ' MISTAKE' + (state.spotCorrupted.length > 1 ? "S" : "") + '</span>';
+
+    renderSpotIdentifyUI();
+    renderHud();
+    state.answering = true;
+    startTimer();
+  }
+
+  function renderSpotIdentifyUI(){
+    const instr = document.getElementById("spot-instructions");
+    instr.classList.remove("hidden");
+    const n = state.spotCorrupted.length;
+    instr.textContent = "Tap the " + n + " part" + (n > 1 ? "s" : "") + " that " + (n > 1 ? "are" : "is") +
+      " WRONG, then lock in \u2014 selected " + state.spotSelected.length + "/" + n;
+
+    const bubble = document.getElementById("bubble");
+    bubble.classList.remove("boss");
+    bubble.innerHTML = "";
+    state.spotRenderList.forEach(function(p, idx){
+      if(p.type === "text"){
+        bubble.appendChild(document.createTextNode(p.v));
+      } else {
+        const span = document.createElement("span");
+        span.className = "spot-token" + (state.spotSelected.indexOf(p.cat) !== -1 ? " selected" : "");
+        span.textContent = p.value;
+        span.dataset.cat = p.cat;
+        span.dataset.idx = String(idx);
+        span.addEventListener("click", function(){ toggleSpotSelect(p.cat); });
+        bubble.appendChild(span);
+      }
+    });
+
+    document.getElementById("btn-submit").textContent = "Lock In Target (Enter)";
+  }
+
+  function toggleSpotSelect(cat){
+    if(!state.answering || state.spotPhase !== "identify") return;
+    const i = state.spotSelected.indexOf(cat);
+    if(i === -1){ state.spotSelected.push(cat); } else { state.spotSelected.splice(i, 1); }
+    renderSpotIdentifyUI();
+  }
+
+  function sameCategorySet(a, b){
+    if(a.length !== b.length) return false;
+    return a.every(function(c){ return b.indexOf(c) !== -1; });
+  }
+
+  function resolveSpotIdentify(timedOut){
+    state.answering = false;
+    clearInterval(state.timer);
+
+    const match = !timedOut && sameCategorySet(state.spotSelected, state.spotCorrupted);
+
+    const bubble = document.getElementById("bubble");
+    bubble.querySelectorAll(".spot-token").forEach(function(tok){
+      tok.classList.add("locked");
+      const cat = tok.dataset.cat;
+      const wasSelected = state.spotSelected.indexOf(cat) !== -1;
+      const isWrong = state.spotCorrupted.indexOf(cat) !== -1;
+      if(isWrong && wasSelected){ tok.classList.add("correct-catch"); }
+      else if(isWrong && !wasSelected){ tok.classList.add("missed"); }
+      else if(!isWrong && wasSelected){ tok.classList.add("false-positive"); }
+    });
+
+    const instr = document.getElementById("spot-instructions");
+    const fb = document.getElementById("feedback");
+    const n = state.spotCorrupted.length;
+
+    if(match){
+      const gain = Math.round((30 + n * 25) * DIFFICULTY_SCORE_MULT[state.difficulty]);
+      state.score += gain;
+      fb.textContent = "ERROR SPOTTED  +" + gain;
+      fb.className = "feedback ok";
+      instr.textContent = "Nice catch! Now fix " + (n > 1 ? "them" : "it") + "\u2026";
+      sfxCorrect();
+      renderHud();
+      setTimeout(startSpotCorrectionPhase, 1200);
+    } else {
+      state.lives = Math.max(0, state.lives - 1);
+      fb.textContent = timedOut ? "TOO SLOW \u2014 SHIELDS HIT" : "MISSED THE ERROR \u2014 SHIELDS HIT";
+      fb.className = "feedback bad";
+      instr.textContent = "Here's what was actually wrong \u2014 now fix " + (n > 1 ? "them" : "it") + "\u2026";
+      sfxWrong();
+      fireLaserEnemy();
+      renderHud();
+      const livesDepleted = state.lives <= 0;
+      setTimeout(function(){
+        if(livesDepleted){ triggerShipExplosion(); } else { triggerShieldHit(); }
+      }, 300);
+      setTimeout(function(){
+        if(livesDepleted){ endGame(); } else { startSpotCorrectionPhase(); }
+      }, 1200);
+    }
+  }
+
+  function startSpotCorrectionPhase(){
+    state.spotPhase = "correct";
+    state.answering = true;
+    document.getElementById("feedback").textContent = "";
+    document.getElementById("feedback").className = "feedback";
+
+    const n = state.spotCorrupted.length;
+    const instr = document.getElementById("spot-instructions");
+    instr.textContent = "Type the correction" + (n > 1 ? "s" : "") + " for the highlighted part" + (n > 1 ? "s" : "") + ":";
+
+    const bubble = document.getElementById("bubble");
+    bubble.innerHTML = "";
+    state.spotRenderList.forEach(function(p, idx){
+      if(p.type === "text"){
+        bubble.appendChild(document.createTextNode(p.v));
+        return;
+      }
+      if(p.isWrong){
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "blank wide";
+        input.dataset.idx = String(idx);
+        input.dataset.cat = p.cat;
+        input.autocomplete = "off";
+        input.spellcheck = false;
+        input.addEventListener("keydown", function(e){ if(e.key === "Enter") checkAnswer(); });
+        bubble.appendChild(input);
+      } else {
+        bubble.appendChild(document.createTextNode(p.value));
+      }
+    });
+
+    document.getElementById("btn-submit").textContent = "Correct It! (Enter)";
+    document.getElementById("row-next").classList.add("hidden");
+    document.getElementById("row-submit").classList.remove("hidden");
+
+    startTimer();
+    const firstBlank = bubble.querySelector(".blank");
+    if(firstBlank){ setTimeout(function(){ firstBlank.focus(); }, 50); }
+  }
+
+  function resolveSpotCorrection(timedOut){
+    state.answering = false;
+    clearInterval(state.timer);
+    const bubble = document.getElementById("bubble");
+    const inputs = bubble.querySelectorAll(".blank");
+    const question = state.current;
+    let allCorrect = !timedOut;
+    const explainLines = [];
+    const missedCats = [];
+
+    inputs.forEach(function(inp){
+      const cat = inp.dataset.cat;
+      const idx = compactIdxForCat(cat);
+      const part = question.compactParts[idx];
+      const val = normalize(inp.value || "");
+      const valNoThat = cat === "pronoun" ? stripLeadingThat(val) : val;
+      const ok = part.answer.some(function(a){
+        const na = normalize(a);
+        return na === val || na === valNoThat;
+      });
+      inp.classList.add(ok ? "correct" : "incorrect");
+      inp.disabled = true;
+      if(!ok){
+        allCorrect = false;
+        missedCats.push(cat);
+        const reveal = document.createElement("span");
+        reveal.className = "reveal";
+        reveal.textContent = "correct: " + part.answer[0];
+        inp.insertAdjacentElement("afterend", reveal);
+        explainLines.push(explainBlank(question, cat, part));
+      }
+    });
+
+    state.totalCount++;
+    submitAnalytics(question.id, question.tense, allCorrect);
+
+    const fb = document.getElementById("feedback");
+
+    if(allCorrect){
+      state.correctCount++;
+      state.streak++;
+      state.bestStreak = Math.max(state.bestStreak, state.streak);
+      const timeBonus = Math.round(Math.max(0, state.timeLeft) * 5);
+      const baseGain = 100 + timeBonus;
+      const modifierPct = state.streak * 10;
+      const gain = Math.round(baseGain * (1 + modifierPct / 100) * DIFFICULTY_SCORE_MULT[state.difficulty]);
+      state.score += gain;
+      fb.textContent = "CORRECTED  +" + gain +
+        (state.streak > 1 ? "\nSTREAK x" + state.streak + " \u2192 +" + modifierPct + "%" : "");
+      fb.className = "feedback ok";
+      state.timerBudget = Math.max(30, state.timerBudget - 5);
+
+      applyAdaptiveDifficulty(state.spotCorrupted, []);
+      flashComboIndicator();
+      sfxCorrect();
+      fireLaserAlly();
+      setTimeout(triggerAlienExplosion, 420);
+      renderHud();
+
+      setTimeout(function(){
+        if(state.lives <= 0){ endGame(); } else { nextQuestion(); }
+      }, 1300);
+    } else {
+      state.streak = 0;
+      shatterComboIndicator();
+      state.lives = Math.max(0, state.lives - 1);
+      fb.textContent = timedOut ? "TOO SLOW \u2014 SHIELDS HIT" : "STILL INCORRECT \u2014 SHIELDS HIT";
+      fb.className = "feedback bad";
+      state.timerBudget = 60;
+      sfxWrong();
+
+      const drop = applyAdaptiveDifficulty(state.spotCorrupted, missedCats);
+      if(drop){
+        fb.textContent += "\n\u26A0 DIFFICULTY ADJUSTED: " + DIFFICULTY_INFO[drop.from].label.toUpperCase() +
+          " \u2192 " + DIFFICULTY_INFO[drop.to].label.toUpperCase();
+      }
+
+      renderExplainer(explainLines);
+
+      fireLaserEnemy();
+      const livesDepleted = state.lives <= 0;
+      setTimeout(function(){
+        if(livesDepleted){ triggerShipExplosion(); } else { triggerShieldHit(); }
+      }, 420);
+      renderHud();
+
+      showNextWave(livesDepleted);
+    }
+  }
+
+  /* ============ BATTLE ANIMATIONS ============ */
+  function fireLaserAlly(){
+    const bolt = document.getElementById("laser-bolt");
+    const colorClass = Math.random() < 0.5 ? "fire-ally-blue" : "fire-ally-green";
+    bolt.className = "laser-bolt";
+    void bolt.offsetWidth; // force reflow so the animation restarts every shot
+    bolt.classList.add(colorClass);
+    sfxLaser(false);
+  }
+
+  function fireLaserEnemy(){
+    const bolt = document.getElementById("laser-bolt");
+    bolt.className = "laser-bolt";
+    void bolt.offsetWidth;
+    bolt.classList.add("fire-enemy");
+    sfxLaser(true);
+    const alienEl = document.getElementById("alien");
+    alienEl.classList.remove("attack-flicker");
+    void alienEl.offsetWidth;
+    alienEl.classList.add("attack-flicker");
+  }
+
+  function triggerAlienExplosion(){
+    const alienEl = document.getElementById("alien");
+    const fx = document.getElementById("alien-explosion");
+    alienEl.classList.add("shake");
+    fx.className = "explosion-fx";
+    void fx.offsetWidth;
+    fx.classList.add("boom");
+    sfxExplosion();
+    screenShake();
+    burstParticles(alienEl, "var(--ok)", 14);
+    setTimeout(function(){ alienEl.classList.add("destroyed"); }, 140);
+  }
+
+  function triggerShieldHit(){
+    const ring = document.getElementById("shield-ring");
+    const shipEl = document.getElementById("ship-svg");
+    ring.className = "shield-ring";
+    void ring.offsetWidth;
+    ring.classList.add("hit");
+    shipEl.classList.remove("shake");
+    void shipEl.offsetWidth;
+    shipEl.classList.add("shake");
+    screenShake();
+    burstParticles(shipEl, "var(--danger)", 8);
+    updateHullDamage();
+    setTimeout(function(){ shipEl.classList.remove("shake"); }, 420);
+  }
+
+  function triggerShipExplosion(){
+    const shipEl = document.getElementById("ship-svg");
+    const fx = document.getElementById("ship-explosion");
+    fx.className = "explosion-fx";
+    void fx.offsetWidth;
+    fx.classList.add("boom");
+    sfxExplosion();
+    screenShake();
+    burstParticles(shipEl, "var(--danger)", 16);
+    updateHullDamage();
+    setTimeout(function(){ shipEl.classList.add("destroyed"); }, 140);
+  }
+
+  const ERROR_CATEGORY_LABEL = {pronoun:"pronoun agreement", tense:"tense backshifting", time:"time adverbials"};
+
+  // Looks at this mission's error tally and names the single category the
+  // player missed most, so the game-over screen can point them at it.
+  function practiceFocusMessage(){
+    const counts = state.errorCounts;
+    let top = null;
+    Object.keys(counts).forEach(function(k){
+      if(counts[k] > 0 && (!top || counts[k] > counts[top])) top = k;
+    });
+    if(!top) return null;
+    return "You struggled with " + ERROR_CATEGORY_LABEL[top] + " \u2014 try the Veteran tier again.";
+  }
+
+  // Rank + "points to next place" within one scope (an already-filtered
+  // array of entries). Rank is just 1 + how many scored higher \u2014 no need
+  // to locate the just-submitted row itself, which sidesteps any race with
+  // exactly which id the server assigned it.
+  function computeRankInfo(entries, myScore){
+    const above = entries.filter(function(e){ return e.score > myScore; });
+    let diff = null;
+    if(above.length > 0){
+      diff = Math.min.apply(null, above.map(function(e){ return e.score; })) - myScore;
+    }
+    return { rank: above.length + 1, total: entries.length, diff: diff };
+  }
+
+  function renderRankPanel(entry, freshList, synced){
+    const panel = document.getElementById("rank-panel");
+    panel.innerHTML = "";
+    panel.classList.remove("show");
+    if(!synced || !Array.isArray(freshList)) return;
+
+    const modeEntries = freshList.filter(function(e){ return e.mode === entry.mode; });
+    const globalInfo = computeRankInfo(modeEntries, entry.score);
+    const weekInfo = computeRankInfo(modeEntries.filter(function(e){ return e.season === currentSeason(); }), entry.score);
+    let classInfo = null;
+    if(entry.classCode){
+      classInfo = computeRankInfo(modeEntries.filter(function(e){ return (e.classCode || "").toUpperCase() === entry.classCode.toUpperCase(); }), entry.score);
+    }
+
+    let html = rankRow("Global Rank", globalInfo);
+    if(classInfo) html += rankRow("Class " + escapeHtml(entry.classCode) + " Rank", classInfo);
+    html += rankRow("This Week Rank", weekInfo);
+
+    const nextInfo = classInfo || globalInfo;
+    html += nextInfo.diff !== null
+      ? '<div class="rank-hint">Only ' + nextInfo.diff + ' points to the next place\u2026</div>'
+      : '<div class="rank-hint">\uD83C\uDFC6 You\u2019re in first place!</div>';
+
+    panel.innerHTML = html;
+    panel.classList.add("show");
+  }
+
+  function rankRow(label, info){
+    return '<div class="rank-row"><span>' + label + '</span><b>#' + info.rank + ' <span class="rank-total">/ ' + info.total + '</span></b></div>';
+  }
+
+  async function endGame(){
+    clearInterval(state.timer);
+    document.getElementById("final-score").textContent = state.score;
+    const acc = state.totalCount ? Math.round((state.correctCount/state.totalCount)*100) : 0;
+    document.getElementById("final-accuracy").textContent = acc + "%";
+    document.getElementById("final-streak").textContent = state.bestStreak;
+
+    const won = state.lives > 0;
+    const headingEl = document.getElementById("over-heading");
+    headingEl.textContent = won ? "SECTOR SECURED" : "FLEET OVERRAN THE SECTOR";
+    headingEl.className = "over-heading " + (won ? "win" : "lose");
+    document.getElementById("over-subtitle").textContent = won ? "Transmission Restored" : "Distress Signal Sent \u2014 Report Corps, Regroup";
+
+    const focusMsg = practiceFocusMessage();
+    const focusEl = document.getElementById("practice-focus");
+    if(focusMsg){
+      focusEl.textContent = "\uD83C\uDFAF " + focusMsg;
+      focusEl.classList.add("show");
+    } else {
+      focusEl.classList.remove("show");
+    }
+
+    saveCampaign(state.difficulty, won);
+
+    show("screen-over");
+
+    const entry = {
+      name: state.playerName,
+      classCode: state.classCode,
+      score: state.score,
+      mode: currentModeKey(),
+      length: state.lengthMode,
+      difficulty: state.difficulty,
+      date: Date.now()
+    };
+    const synced = await submitScore(entry);
+    const warn = document.getElementById("sync-warning");
+    warn.classList.toggle("show", !synced);
+
+    const freshList = await loadBoard();
+    renderRankPanel(entry, freshList, synced);
+    await renderSidebarBoard(freshList);
+  }
+
+  /* ============ v1.4: EXPORT SESSION RESULTS AS CSV ============ */
+  function exportResultsCsv(){
+    const acc = state.totalCount ? Math.round((state.correctCount / state.totalCount) * 100) : 0;
+    const tenseList = state.selectedTenses.map(function(k){ return TENSE_LABELS[k] || k; }).join(" | ");
+    const rows = [
+      ["Metric", "Value"],
+      ["Callsign", state.playerName],
+      ["Class Code", state.classCode || ""],
+      ["Date", new Date().toISOString()],
+      ["Practice Style", state.playMode === "spot" ? "Spot the Error" : "Grammar Practice"],
+      ["Tense(s)", tenseList],
+      ["Difficulty Reached", DIFFICULTY_INFO[state.difficulty].label],
+      ["Mission Length", state.lengthMode],
+      ["Score", state.score],
+      ["Correct", state.correctCount],
+      ["Total Questions", state.totalCount],
+      ["Accuracy %", acc],
+      ["Best Streak", state.bestStreak],
+      ["Pronoun Misses", state.errorCounts.pronoun || 0],
+      ["Verb/Tense Misses", state.errorCounts.tense || 0],
+      ["Time Expression Misses", state.errorCounts.time || 0]
+    ];
+    const csv = rows.map(function(r){
+      return r.map(function(v){
+        const s = String(v == null ? "" : v);
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(",");
+    }).join("\r\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (state.playerName || "player").replace(/[^a-z0-9\-_]+/gi, "_");
+    a.href = url;
+    a.download = "speech-invaders-results-" + safeName + "-" + Date.now() + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  document.getElementById("btn-export-csv").addEventListener("click", exportResultsCsv);
+
+  /* ============ LEADERBOARD (persistent sidebar) ============ */
+  const sidebarState = { scope: "global", time: "week" };
+
+  document.getElementById("sidebar-filter").addEventListener("change", function(){ renderSidebarBoard(); });
+
+  document.querySelectorAll("#scope-tabs .tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      sidebarState.scope = btn.dataset.scope;
+      document.querySelectorAll("#scope-tabs .tab-btn").forEach(function(b){ b.classList.toggle("selected", b === btn); });
+      renderSidebarBoard();
+    });
+  });
+  document.querySelectorAll("#time-tabs .tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      sidebarState.time = btn.dataset.time;
+      document.querySelectorAll("#time-tabs .tab-btn").forEach(function(b){ b.classList.toggle("selected", b === btn); });
+      renderSidebarBoard();
+    });
+  });
+
+  function updateClassBadge(){
+    const badge = document.getElementById("class-badge");
+    if(state.classCode){
+      badge.textContent = "Class: " + state.classCode;
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+    }
+  }
+
+  async function renderSidebarBoard(list){
+    updateClassBadge();
+    const all = list || await loadBoard();
+    const modeFilter = document.getElementById("sidebar-filter").value;
+
+    let filtered = all;
+    if(modeFilter === "infinite"){
+      filtered = filtered.filter(function(e){ return e.length === "infinite"; });
+    } else if(modeFilter !== "all"){
+      filtered = filtered.filter(function(e){ return e.mode === modeFilter; });
+    }
+    if(sidebarState.time === "week"){
+      filtered = filtered.filter(function(e){ return e.season === currentSeason(); });
+    }
+
+    const body = document.getElementById("sidebar-body");
+    body.innerHTML = "";
+
+    if(sidebarState.scope === "class" && !state.classCode){
+      renderSidebarEmpty(body, "Enter a class code (name@ClassCode) to see class rankings.");
+      return;
+    }
+    if(sidebarState.scope === "friends" && pinnedCallsigns.length === 0 && !state.playerName){
+      renderSidebarEmpty(body, "Pin a callsign from Global or My Class to compare here.");
+      return;
+    }
+
+    if(sidebarState.scope === "class"){
+      filtered = filtered.filter(function(e){ return (e.classCode || "").toUpperCase() === state.classCode.toUpperCase(); });
+    } else if(sidebarState.scope === "friends"){
+      filtered = filtered.filter(function(e){
+        return e.name === state.playerName || isPinned(e.name);
+      });
+    }
+
+    filtered = filtered.slice().sort(function(a,b){ return b.score-a.score; }).slice(0, 25);
+
+    if(filtered.length === 0){
+      renderSidebarEmpty(body, sidebarState.scope === "friends" ? "None of your pinned callsigns have a score here yet." : "No scores yet. Be the first pilot!");
+      return;
+    }
+
+    // For the Friends view, show each pinned pilot's gap to you.
+    const myBest = filtered.reduce(function(best, e){
+      return (e.name === state.playerName && (!best || e.score > best)) ? e.score : best;
+    }, null);
+
+    filtered.forEach(function(e, i){
+      const row = document.createElement("div");
+      const isMe = e.name === state.playerName;
+      row.className = "sidebar-row" + (isMe ? " me" : "");
+      const modeLabel = e.mode === "mixed" ? "Mixed" : (TENSE_LABELS[e.mode] || e.mode);
+      const lengthLabel = LENGTH_LABELS[e.length] || e.length;
+      const diffLabel = e.difficulty ? (e.difficulty.charAt(0).toUpperCase() + e.difficulty.slice(1)) : "";
+
+      let diffLine = "";
+      if(sidebarState.scope === "friends" && !isMe && myBest !== null){
+        const d = e.score - myBest;
+        diffLine = '<span class="s-diff ' + (d > 0 ? "up" : "down") + '">' + (d > 0 ? "+" : "") + d + " vs you</span>";
+      }
+
+      const pinBtn = (sidebarState.scope !== "friends" && !isMe)
+        ? '<button type="button" class="pin-btn' + (isPinned(e.name) ? " pinned" : "") + '" data-name="' + escapeHtml(e.name) + '" title="Pin for head-to-head">' + (isPinned(e.name) ? "\u2605" : "\u2606") + '</button>'
+        : "";
+      const unpinBtn = (sidebarState.scope === "friends" && !isMe)
+        ? '<button type="button" class="pin-btn pinned" data-name="' + escapeHtml(e.name) + '" title="Unpin">\u2605</button>'
+        : "";
+
+      row.innerHTML =
+        '<div class="s-rank">' + (i+1) + '</div>' +
+        '<div class="s-name">' + escapeHtml(e.name) +
+          '<span class="s-meta">' + escapeHtml(modeLabel) + ' \u2022 ' + escapeHtml(lengthLabel) + ' \u2022 ' + escapeHtml(diffLabel) + '</span>' +
+          diffLine +
+        '</div>' +
+        '<div class="s-score">' + e.score + '</div>' +
+        pinBtn + unpinBtn;
+      body.appendChild(row);
+    });
+
+    body.querySelectorAll(".pin-btn").forEach(function(btn){
+      btn.addEventListener("click", function(){ togglePin(btn.dataset.name); });
+    });
+  }
+
+  function renderSidebarEmpty(body, text){
+    const empty = document.createElement("div");
+    empty.className = "sidebar-empty";
+    empty.textContent = text;
+    body.appendChild(empty);
+  }
+
+  function escapeHtml(s){
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  /* ============ ADMIN CONSOLE (callsign "nebula-cipher-9") ============ */
+  async function renderAdminList(){
+    const list = await loadBoard();
+    const sorted = list.slice().sort(function(a,b){ return b.score - a.score; });
+    const container = document.getElementById("admin-list");
+    container.innerHTML = "";
+    if(sorted.length === 0){
+      const empty = document.createElement("div");
+      empty.className = "admin-empty";
+      empty.textContent = "The leaderboard is empty.";
+      container.appendChild(empty);
+      return;
+    }
+    sorted.forEach(function(e, i){
+      const row = document.createElement("div");
+      row.className = "admin-row";
+      const modeLabel = e.mode === "mixed" ? "Mixed" : (TENSE_LABELS[e.mode] || e.mode || "\u2014");
+      const lengthLabel = LENGTH_LABELS[e.length] || e.length || "\u2014";
+      const diffLabel = e.difficulty ? (e.difficulty.charAt(0).toUpperCase() + e.difficulty.slice(1)) : "\u2014";
+      const dateLabel = e.date ? new Date(e.date).toLocaleString() : "";
+      row.innerHTML =
+        '<div class="a-rank">' + (i+1) + '</div>' +
+        '<div class="a-info">' +
+          '<span class="a-name">' + escapeHtml(e.name || "(unnamed)") + '</span>' +
+          '<span class="a-meta">' + escapeHtml(modeLabel) + ' \u2022 ' + escapeHtml(lengthLabel) + ' \u2022 ' + escapeHtml(diffLabel) + (dateLabel ? ' \u2022 ' + escapeHtml(dateLabel) : '') + '</span>' +
+        '</div>' +
+        '<div class="a-score">' + e.score + '</div>';
+      const delBtn = document.createElement("button");
+      delBtn.className = "a-delete";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", function(){ adminDeleteEntry(entryKey(e)); });
+      row.appendChild(delBtn);
+      container.appendChild(row);
+    });
+  }
+
+  async function adminDeleteEntry(key){
+    const ok = await apiDeleteEntry(key);
+    if(!ok){
+      alert("Delete failed \u2014 the server rejected the request (check that your admin secret matches the Worker's ADMIN_SECRET).");
+      return;
+    }
+    await renderAdminList();
+    await renderSidebarBoard();
+  }
+
+  async function adminDeleteAll(){
+    const confirmed = window.confirm("Delete ALL leaderboard entries? This cannot be undone.");
+    if(!confirmed) return;
+    const ok = await apiDeleteAll();
+    if(!ok){
+      alert("Delete failed \u2014 the server rejected the request (check that your admin secret matches the Worker's ADMIN_SECRET).");
+      return;
+    }
+    await renderAdminList();
+    await renderSidebarBoard();
+  }
+
+  document.getElementById("btn-admin-refresh").addEventListener("click", renderAdminList);
+  document.getElementById("btn-admin-delete-all").addEventListener("click", adminDeleteAll);
+  document.getElementById("btn-admin-back").addEventListener("click", function(){
+    show("screen-login");
+  });
+
+  /* ============ QUESTION ANALYTICS (teacher tools) ============ */
+  // Shows every question's error rate, worst first, so a teacher can see
+  // at a glance which patterns the whole class is missing. Questions with
+  // fewer than 3 attempts are hidden \u2014 not enough data yet to mean much.
+  const MIN_ANALYTICS_ATTEMPTS = 3;
+
+  async function renderAdminAnalytics(){
+    const container = document.getElementById("admin-analytics-list");
+    container.innerHTML = "";
+    let data;
+    try{
+      data = await apiFetch("/api/analytics", { method: "GET" });
+    }catch(e){
+      const err = document.createElement("div");
+      err.className = "admin-empty";
+      err.textContent = "Could not reach the analytics endpoint.";
+      container.appendChild(err);
+      return;
+    }
+    const entries = (data && data.entries) || {};
+    const rows = Object.keys(entries).map(function(id){
+      const e = entries[id] || {};
+      const attempts = e.attempts || 0;
+      const misses = e.misses || 0;
+      return {
+        id: id,
+        label: QUESTION_LABELS[id] || id,
+        attempts: attempts,
+        misses: misses,
+        rate: attempts ? Math.round((misses / attempts) * 100) : 0
+      };
+    }).filter(function(r){ return r.attempts >= MIN_ANALYTICS_ATTEMPTS; })
+      .sort(function(a, b){ return b.rate - a.rate || b.attempts - a.attempts; })
+      .slice(0, 20);
+
+    if(rows.length === 0){
+      const empty = document.createElement("div");
+      empty.className = "admin-empty";
+      empty.textContent = "Not enough attempts yet \u2014 check back after a few missions.";
+      container.appendChild(empty);
+      return;
+    }
+    rows.forEach(function(r, i){
+      const row = document.createElement("div");
+      row.className = "admin-row";
+      row.innerHTML =
+        '<div class="a-rank">' + (i+1) + '</div>' +
+        '<div class="a-info">' +
+          '<span class="a-name">' + escapeHtml(r.label) + '</span>' +
+          '<span class="a-meta">' + r.misses + ' missed / ' + r.attempts + ' attempts</span>' +
+        '</div>' +
+        '<div class="a-score" style="color:var(--danger);">' + r.rate + '%</div>';
+      container.appendChild(row);
+    });
+  }
+
+  async function adminResetAnalytics(){
+    const confirmed = window.confirm("Reset ALL question analytics? This cannot be undone.");
+    if(!confirmed) return;
+    const ok = await apiDeleteAnalytics();
+    if(!ok){
+      alert("Reset failed \u2014 the server rejected the request (check that your admin secret matches the Worker's ADMIN_SECRET).");
+      return;
+    }
+    await renderAdminAnalytics();
+  }
+
+  document.getElementById("btn-analytics-refresh").addEventListener("click", renderAdminAnalytics);
+  document.getElementById("btn-analytics-reset").addEventListener("click", adminResetAnalytics);
+
+  /* init */
+  buildModeScreen();
+  show("screen-login");
+  renderSidebarBoard();
+  checkBackendConnection();
+  updateMuteBtn();
+})();
+</script>
+</body>
+</html>
