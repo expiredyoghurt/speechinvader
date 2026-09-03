@@ -33,6 +33,17 @@
  * leaderboard. This powers the "per-question error rate" table in the
  * Admin Console, so teachers can see which questions the class is missing.
  *
+ *   GET    /api/settings             -> { ok: true, settings: {...} }      (public)
+ *   POST   /api/settings             -> { ok: true, settings: {...} }      (admin only)
+ *
+ * v1.5: Class Controls. A single small object controlling which practice
+ * modes and difficulty tiers are currently open to students -- lets a
+ * teacher temporarily switch off e.g. Novice or Spot the Error class-wide
+ * (say, during an assessment week) without editing any file. Reads are
+ * public so every device's mode-select screen can respect it; writes are
+ * admin-only, same as deletes. Missing/unset keys default to "on" so an
+ * empty/never-configured settings object behaves exactly like v1.4.2.
+ *
  * Admin requests must include a header:
  *   X-Admin-Secret: <your secret>
  * which must match the ADMIN_SECRET secret configured on this Worker
@@ -50,10 +61,19 @@
 
 const KV_KEY = "leaderboard";
 const ANALYTICS_KEY = "analytics";
+const SETTINGS_KEY = "settings";
 const MAX_ENTRIES = 100;
 const MAX_NAME_LEN = 18;
 const MAX_CLASS_LEN = 20;
 const MAX_QID_LEN = 60;
+
+// v1.5: default Class Controls -- everything on. Only the keys a teacher
+// has actually toggled off are stored in KV; this default is merged under
+// whatever's stored so new modes/difficulties added later default to "on".
+const DEFAULT_SETTINGS = {
+  modes: { fill: true, spot: true },
+  difficulties: { novice: true, veteran: true, elite: true }
+};
 
 function corsHeaders(){
   return {
@@ -126,6 +146,39 @@ function sanitizeAnalyticsBody(body){
     tense: typeof body.tense === "string" ? body.tense.slice(0, 40) : "",
     correct: !!body.correct
   };
+}
+
+async function readSettings(env){
+  const raw = await env.LEADERBOARD.get(SETTINGS_KEY);
+  let stored = {};
+  if(raw){
+    try{
+      const parsed = JSON.parse(raw);
+      if(parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed;
+    }catch(e){ stored = {}; }
+  }
+  return {
+    modes: Object.assign({}, DEFAULT_SETTINGS.modes, stored.modes || {}),
+    difficulties: Object.assign({}, DEFAULT_SETTINGS.difficulties, stored.difficulties || {})
+  };
+}
+
+function sanitizeSettings(body){
+  if(!body || typeof body !== "object") return null;
+  const out = { modes: {}, difficulties: {} };
+  const modeKeys = ["fill", "spot"];
+  const diffKeys = ["novice", "veteran", "elite"];
+  modeKeys.forEach(function(k){
+    if(body.modes && typeof body.modes === "object" && typeof body.modes[k] === "boolean"){
+      out.modes[k] = body.modes[k];
+    }
+  });
+  diffKeys.forEach(function(k){
+    if(body.difficulties && typeof body.difficulties === "object" && typeof body.difficulties[k] === "boolean"){
+      out.difficulties[k] = body.difficulties[k];
+    }
+  });
+  return out;
 }
 
 function isAdmin(request, env){
@@ -231,6 +284,26 @@ export default {
         if(!isAdmin(request, env)){ return json({ ok:false, error:"unauthorized" }, 401); }
         await writeAnalytics(env, {});
         return json({ ok: true });
+      }
+
+      if(path === "/api/settings" && request.method === "GET"){
+        const settings = await readSettings(env);
+        return json({ ok: true, settings: settings });
+      }
+
+      if(path === "/api/settings" && request.method === "POST"){
+        if(!isAdmin(request, env)){ return json({ ok:false, error:"unauthorized" }, 401); }
+        let body;
+        try{ body = await request.json(); } catch(e){ return json({ ok:false, error:"invalid JSON" }, 400); }
+        const incoming = sanitizeSettings(body);
+        if(!incoming){ return json({ ok:false, error:"invalid payload" }, 400); }
+        const current = await readSettings(env);
+        const merged = {
+          modes: Object.assign({}, current.modes, incoming.modes),
+          difficulties: Object.assign({}, current.difficulties, incoming.difficulties)
+        };
+        await env.LEADERBOARD.put(SETTINGS_KEY, JSON.stringify(merged));
+        return json({ ok: true, settings: merged });
       }
 
       return json({ ok: false, error: "not found" }, 404);
