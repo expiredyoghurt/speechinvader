@@ -19,6 +19,7 @@
     --text-dim:#8593b8;
     --danger:#ff4d5e;
     --ok:#38f2a0;
+    --silver:#c9d3e0;
   }
   *{box-sizing:border-box;}
   html,body{height:100%;}
@@ -531,6 +532,50 @@
   .team-card .t-name{ font-family:'Press Start 2P'; font-size:16px; color:var(--text); }
   .team-card .t-meta{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; margin-top:4px; }
   .team-card .t-score{ font-family:'Press Start 2P'; font-size:24px; color:var(--amber); flex-shrink:0; }
+
+  /* ---- v1.5: name colours by difficulty tier reached ---- */
+  .name-novice{ color:var(--danger); }
+  .name-veteran{ color:var(--silver); }
+  .name-elite{ color:var(--amber); text-shadow:0 0 8px rgba(255,203,71,0.5); }
+
+  /* ---- v1.5: gold/silver frames for Elite+Mixed and Veteran+Mixed scores ---- */
+  .frame-gold{
+    border:2px solid #ffd447 !important; box-shadow:0 0 14px rgba(255,212,71,0.35);
+    background:linear-gradient(90deg, rgba(255,212,71,0.08), transparent 60%);
+  }
+  .frame-silver{
+    border:2px solid #c9d3e0 !important; box-shadow:0 0 10px rgba(201,211,224,0.25);
+    background:linear-gradient(90deg, rgba(201,211,224,0.07), transparent 60%);
+  }
+
+  /* ---- v1.5: locked mode/difficulty cards (mastered-out or teacher-disabled) ---- */
+  .tense-card.locked, .length-card.locked, .playmode-card.locked{
+    opacity:.4; cursor:not-allowed; filter:grayscale(.6);
+  }
+  .lock-reason{
+    font-size:10px; color:var(--amber); text-transform:none; letter-spacing:0; margin-top:4px;
+  }
+
+  /* ---- v1.5: end-of-session Tense Coverage bonus banner ---- */
+  .coverage-bonus{
+    display:none; text-align:center; font-size:12px; color:var(--ok); background:#0c1f18;
+    border:1px solid var(--ok); border-radius:8px; padding:10px 14px; margin:10px 0;
+  }
+  .coverage-bonus.show{ display:block; }
+
+  /* ---- v1.5: mastery / promotion toast inside the game feedback area ---- */
+  .mastery-note{ color:var(--amber); }
+
+  /* ---- v1.5: Admin Console "Class Controls" toggles ---- */
+  .settings-grid{ display:flex; flex-wrap:wrap; gap:10px; margin:10px 0; }
+  .settings-toggle{
+    display:flex; align-items:center; gap:8px; background:#101832; border:2px solid var(--grid); border-radius:20px;
+    padding:8px 16px; font-size:12px; cursor:pointer; user-select:none;
+  }
+  .settings-toggle.on{ border-color:var(--ok); color:var(--ok); }
+  .settings-toggle.off{ border-color:var(--danger); color:var(--danger); }
+  .settings-toggle input{ accent-color:var(--ok); }
+  #settings-save-status{ font-size:11px; color:var(--text-dim); margin-left:8px; }
 </style>
 </head>
 <body>
@@ -690,6 +735,7 @@
         <div class="stat"><div class="v" id="final-accuracy">0%</div><div class="k">Accuracy</div></div>
         <div class="stat"><div class="v" id="final-streak">0</div><div class="k">Best Streak</div></div>
       </div>
+      <div class="coverage-bonus" id="coverage-bonus"></div>
       <div class="rank-panel" id="rank-panel"></div>
       <div class="sync-warning" id="sync-warning">\u26A0 Could not reach the shared leaderboard \u2014 this score was saved on this device only.</div>
       <div class="practice-focus" id="practice-focus"></div>
@@ -713,6 +759,19 @@
       </div>
       <div class="btn-row">
         <button class="btn secondary" id="btn-admin-back">Log Out</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 style="text-align:center;color:var(--cyan);font-size:16px;">\u2699 CLASS CONTROLS</h2>
+      <div class="admin-sub">Temporarily open/close practice modes and difficulty tiers class-wide (e.g. for an assessment week). Applies to every device on next mode-select load.</div>
+      <label style="margin-top:10px;">Practice style</label>
+      <div class="settings-grid" id="settings-modes-grid"></div>
+      <label>Difficulty tier</label>
+      <div class="settings-grid" id="settings-diff-grid"></div>
+      <div class="btn-row">
+        <button class="btn secondary" id="btn-settings-save">Save Class Controls</button>
+        <span id="settings-save-status"></span>
       </div>
     </div>
 
@@ -760,6 +819,25 @@
 <script>
 (function(){
   "use strict";
+
+  /* ============ v1.5: CURRICULUM INCENTIVES CHANGELOG ============
+     Goal: make broad, deep practice the obviously best path to a top
+     leaderboard score, instead of grinding Novice + Simple Past.
+       - Streak bonus now scaled BY difficulty tier (was a flat 10%/streak
+         for everyone): Novice +5%/streak (cap 50%), Veteran +10% (cap
+         100%), Elite +15% (cap 200%). See STREAK_PCT_PER_TIER below.
+       - New flat, once-per-session Tense Coverage bonus for Mixed (or 3+
+         individually-picked tenses). See COVERAGE_BONUS_PER_CORRECT.
+       - Adaptive difficulty now also goes UP, not just down: 8/10 rolling
+         accuracy at a tier permanently locks it out (mastery), and
+         Infinite Mode additionally auto-promotes on a 10-answer streak.
+         See MASTERY_WINDOW / recordTierOutcome / checkInfiniteStreakPromotion.
+       - Leaderboard names are now colour-coded by difficulty (Novice red,
+         Veteran silver, Elite gold), and Mixed-tense high scores get a
+         gold (Elite) or silver (Veteran) frame. See nameColorClass/frameClass.
+       - Admin Console gained "Class Controls": teacher-toggleable, server-
+         synced on/off switches per practice style and difficulty tier.
+         See gameSettings / loadSettings / saveSettings / renderAdminSettings. */
 
   /* ============ DATA: VERB TABLE (30 verbs, exact principal parts) ============ */
   const VERBS = [
@@ -1238,6 +1316,44 @@
     }
   }
 
+  /* ============ v1.5: CLASS CONTROLS (teacher-toggleable modes/difficulties) ============
+     Small shared config, synced the same way as the leaderboard: public
+     read, admin-only write. Defaults to everything ON so a brand-new
+     deployment (or an unreachable Worker) behaves exactly like v1.4.2. */
+  const DEFAULT_GAME_SETTINGS = {
+    modes: { fill: true, spot: true },
+    difficulties: { novice: true, veteran: true, elite: true }
+  };
+  let gameSettings = JSON.parse(JSON.stringify(DEFAULT_GAME_SETTINGS));
+
+  async function loadSettings(){
+    try{
+      const data = await apiFetch("/api/settings", { method: "GET" });
+      if(data && data.settings){
+        gameSettings = {
+          modes: Object.assign({}, DEFAULT_GAME_SETTINGS.modes, data.settings.modes || {}),
+          difficulties: Object.assign({}, DEFAULT_GAME_SETTINGS.difficulties, data.settings.difficulties || {})
+        };
+      }
+    }catch(e){ /* offline: fall back to defaults (everything on) */ }
+    return gameSettings;
+  }
+
+  async function saveSettings(next){
+    const data = await apiFetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Admin-Secret": adminSecret || "" },
+      body: JSON.stringify(next)
+    });
+    if(data && data.ok && data.settings){
+      gameSettings = {
+        modes: Object.assign({}, DEFAULT_GAME_SETTINGS.modes, data.settings.modes || {}),
+        difficulties: Object.assign({}, DEFAULT_GAME_SETTINGS.difficulties, data.settings.difficulties || {})
+      };
+    }
+    return !!(data && data.ok);
+  }
+
   // Lightweight round-trip to confirm the Worker is reachable, without
   // touching the real leaderboard data.
   async function checkBackendConnection(){
@@ -1317,7 +1433,11 @@
     // v1.4
     categoryMissStreak: {pronoun:0, tense:0, time:0}, // consecutive misses per category, Veteran/Elite only
     recapTense: null,       // set after a missed boss question; forces the next round to match
-    forceNoBossNext: false  // the forced recap round is never itself a boss
+    forceNoBossNext: false, // the forced recap round is never itself a boss
+    // v1.5
+    tierHistory: {novice:[], veteran:[], elite:[]}, // rolling last-10 correct/incorrect per tier, this session
+    masteredTiers: {novice:false, veteran:false},   // persisted (campaign) \u2014 once true, that tier is locked out
+    tierBumpNote: null      // set when a mastery/streak promotion just happened, shown in the next feedback line
   };
 
   /* ============ DIFFICULTY TIERS ============
@@ -1341,6 +1461,101 @@
      Veteran again (4x Novice). Applied to every point gain, in both
      Grammar Practice and Spot the Error. */
   const DIFFICULTY_SCORE_MULT = {novice:1, veteran:2, elite:4};
+
+  /* ============ v1.5: DIFFICULTY-SCALED STREAK BONUS ============
+     Higher tiers reward a hot streak more, on top of the flat score
+     multiplier above \u2014 so chasing a big streak is also a reason to play
+     up a tier, not just to grind Novice. Capped so an infinite run can't
+     turn into an unbounded multiplier. */
+  const STREAK_PCT_PER_TIER = {novice:5, veteran:10, elite:15};
+  const STREAK_CAP_PER_TIER = {novice:50, veteran:100, elite:200};
+  function streakBonusPct(){
+    const step = STREAK_PCT_PER_TIER[state.difficulty] || 10;
+    const cap = STREAK_CAP_PER_TIER[state.difficulty] || 100;
+    return Math.min(cap, state.streak * step);
+  }
+
+  /* ============ v1.5: TENSE COVERAGE BONUS ============
+     A flat, once-per-session bonus paid out at the end of a mission that
+     used Mixed, or 3+ individually-picked tenses (Custom sets don't count
+     toward the 3, since they're teacher-authored and not a PSLE tense).
+     Purely additive \u2014 doesn't touch the per-question scoring above \u2014 so
+     it rewards breadth without punishing anyone who prefers to drill one
+     tense at a time. */
+  const COVERAGE_BONUS_PER_CORRECT = 40;
+  function coverageQualifies(){
+    if(state.selectedTenses.indexOf("mixed") !== -1) return true;
+    const graded = state.selectedTenses.filter(function(t){ return t !== "custom" && t !== "mixed"; });
+    return graded.length >= 3;
+  }
+
+  /* ============ v1.5: BIDIRECTIONAL ADAPTIVE DIFFICULTY ============
+     The existing v1.4 mechanic (categoryMissStreak, applyAdaptiveDifficulty
+     below) only ever drops a struggling pupil down a tier. This adds the
+     mirror image: a pupil who's clearly ready moves UP, two ways:
+       1) Mastery lock (persisted): 8+ correct out of the last 10 questions
+          answered AT a given tier permanently locks that tier out on the
+          mode-select screen from then on (saved to campaign localStorage),
+          and immediately bumps the current session up one tier too. Once
+          locked, always locked \u2014 this only ratchets upward.
+       2) Infinite-mode streak promotion (session-only): 10 correct answers
+          in a row, regardless of the mastery lock, bumps Infinite Mode
+          runs up a tier on the spot \u2014 a live run shouldn't coast forever
+          on an easy tier just because the lock hasn't triggered yet. */
+  const TIER_ORDER = ["novice", "veteran", "elite"];
+  const MASTERY_WINDOW = 10;
+  const MASTERY_THRESHOLD = 0.8;
+
+  function nextTier(tier){
+    const i = TIER_ORDER.indexOf(tier);
+    return (i === -1 || i >= TIER_ORDER.length - 1) ? tier : TIER_ORDER[i + 1];
+  }
+  // Lowest tier NOT locked out by a persisted mastery flag \u2014 used both to
+  // sanitize a resumed campaign difficulty and to pick where a mastery
+  // promotion should land.
+  function firstUnlockedTier(preferred){
+    let t = preferred || "novice";
+    while(t !== "elite" && state.masteredTiers[t]) t = nextTier(t);
+    return t;
+  }
+
+  // Called once per resolved question (both play modes) with the tier the
+  // question was actually rendered at and whether it was answered correctly.
+  function recordTierOutcome(tier, correct){
+    if(!state.tierHistory[tier]) return;
+    const hist = state.tierHistory[tier];
+    hist.push(!!correct);
+    if(hist.length > MASTERY_WINDOW) hist.shift();
+    if(tier === "elite" || state.masteredTiers[tier]) return; // nothing higher to unlock into, or already locked
+    if(hist.length < MASTERY_WINDOW) return;
+    const correctCount = hist.filter(Boolean).length;
+    if(correctCount / MASTERY_WINDOW < MASTERY_THRESHOLD) return;
+
+    state.masteredTiers[tier] = true;
+    state.tierHistory[tier] = [];
+    saveCampaign(state.difficulty, false);
+    if(state.difficulty === tier){
+      const to = nextTier(tier);
+      state.difficulty = to;
+      state.tierHistory[to] = [];
+      state.tierBumpNote = "\uD83C\uDF96 " + DIFFICULTY_INFO[tier].label.toUpperCase() + " MASTERED (" + correctCount + "/" + MASTERY_WINDOW +
+        ") \u2014 LOCKED. PROMOTED TO " + DIFFICULTY_INFO[to].label.toUpperCase() + ".";
+    }
+  }
+
+  // Infinite Mode only: a live in-session streak promotion, independent of
+  // the persisted mastery lock above.
+  function checkInfiniteStreakPromotion(){
+    if(state.lengthMode !== "infinite") return;
+    if(state.difficulty === "elite") return;
+    if(state.streak === 0 || state.streak % 10 !== 0) return;
+    const from = state.difficulty;
+    const to = nextTier(from);
+    state.difficulty = to;
+    state.tierHistory[to] = [];
+    state.tierBumpNote = "\u26A1 " + state.streak + "-STREAK \u2014 PROMOTED " + DIFFICULTY_INFO[from].label.toUpperCase() +
+      " \u2192 " + DIFFICULTY_INFO[to].label.toUpperCase() + "!";
+  }
 
   /* ============ v1.3: SPOT THE ERROR \u2014 mistakes per difficulty ============
      Novice: 1 seeded mistake. Veteran: 2. Elite: 3 (every category wrong). */
@@ -1723,6 +1938,7 @@
       show("screen-admin");
       renderAdminList();
       renderAdminAnalytics();
+      loadSettings().then(renderAdminSettings);
     } else {
       adminLoginErr.textContent = "Incorrect admin name or password.";
       adminPassInput.value = "";
@@ -1745,12 +1961,17 @@
     try{ data = JSON.parse(localStorage.getItem(campaignKey()) || "null"); }catch(e){ data = null; }
     const banner = document.getElementById("campaign-banner");
     if(!data){ banner.classList.add("hidden"); return; }
-    if(data.difficulty){ state.difficulty = data.difficulty; }
+    if(data.masteredTiers){ state.masteredTiers = Object.assign({novice:false, veteran:false}, data.masteredTiers); }
+    // v1.5: a previously-mastered tier can never be resumed into \u2014 bump
+    // straight to the lowest tier still open to this pupil.
+    if(data.difficulty){ state.difficulty = firstUnlockedTier(data.difficulty); }
     if(data.playMode){ state.playMode = data.playMode; }
     if(Array.isArray(data.selectedTenses) && data.selectedTenses.length){ state.selectedTenses = data.selectedTenses.slice(); }
     const missions = data.missionsCleared || 0;
+    const masteryNote = state.masteredTiers.veteran ? " \u2014 Novice &amp; Veteran mastered, Elite only"
+      : state.masteredTiers.novice ? " \u2014 Novice mastered, Veteran+ only" : "";
     banner.innerHTML = "\uD83D\uDCE1 Welcome back, <b>" + escapeHtml(state.playerName) + "</b> \u2014 resuming at <b>" +
-      DIFFICULTY_INFO[state.difficulty].label + "</b>" + (missions ? ", " + missions + " mission" + (missions > 1 ? "s" : "") + " cleared" : "") +
+      DIFFICULTY_INFO[state.difficulty].label + "</b>" + masteryNote + (missions ? ", " + missions + " mission" + (missions > 1 ? "s" : "") + " cleared" : "") +
       (data.bestScore ? ", personal best <b>" + data.bestScore + "</b>" : "") + ".";
     banner.classList.remove("hidden");
   }
@@ -1762,6 +1983,7 @@
     data.playMode = state.playMode;
     data.selectedTenses = state.selectedTenses.slice();
     data.bestScore = Math.max(data.bestScore || 0, state.score);
+    data.masteredTiers = Object.assign({}, state.masteredTiers);
     if(wonMission) data.missionsCleared = (data.missionsCleared || 0) + 1;
     data.lastPlayed = Date.now();
     try{ localStorage.setItem(campaignKey(), JSON.stringify(data)); }catch(e){ /* storage unavailable */ }
@@ -1813,15 +2035,29 @@
       lengthRow.appendChild(card);
     });
 
+    // v1.5: a mode/difficulty can be locked two ways \u2014 teacher-disabled via
+    // Class Controls (temporary, server-synced), or mastered-out via the
+    // persisted campaign lock (permanent, ratchets up only). Either way the
+    // card is shown but disabled, with a reason, rather than hidden \u2014 so
+    // it's clear WHY an option disappeared, not just that it did.
     const playmodeRow = document.getElementById("playmode-row");
     playmodeRow.innerHTML = "";
     PLAY_MODE_OPTIONS.forEach(function(opt){
+      const teacherOff = gameSettings.modes[opt.key] === false;
       const card = document.createElement("div");
-      card.className = "playmode-card" + (state.playMode === opt.key ? " selected" : "");
-      card.innerHTML = '<div class="p-name">' + opt.name + '</div><div class="p-desc">' + opt.desc + '</div>';
-      card.addEventListener("click", function(){ state.playMode = opt.key; buildModeScreen(); });
+      card.className = "playmode-card" + (state.playMode === opt.key ? " selected" : "") + (teacherOff ? " locked" : "");
+      card.innerHTML = '<div class="p-name">' + opt.name + '</div><div class="p-desc">' + opt.desc + '</div>' +
+        (teacherOff ? '<div class="lock-reason">\uD83D\uDD12 Closed by your teacher</div>' : '');
+      if(!teacherOff){
+        card.addEventListener("click", function(){ state.playMode = opt.key; buildModeScreen(); });
+      }
       playmodeRow.appendChild(card);
     });
+    // If the player's current selection just got locked, jump to whatever's open.
+    if(gameSettings.modes[state.playMode] === false){
+      const openMode = PLAY_MODE_OPTIONS.find(function(o){ return gameSettings.modes[o.key] !== false; });
+      if(openMode) state.playMode = openMode.key;
+    }
 
     const diffRow = document.getElementById("difficulty-row-select");
     diffRow.innerHTML = "";
@@ -1837,17 +2073,36 @@
           {key:"elite",   name:"Elite",   desc:"1 field \u2014 type the entire reported clause"}
         ];
     diffOptions.forEach(function(opt){
+      const mastered = state.masteredTiers[opt.key] === true; // novice/veteran only \u2014 elite has no lock
+      const teacherOff = gameSettings.difficulties[opt.key] === false;
+      const locked = mastered || teacherOff;
       const card = document.createElement("div");
-      card.className = "length-card" + (state.difficulty === opt.key ? " selected" : "");
-      card.innerHTML = '<div class="l-name">' + opt.name + '</div><div class="l-desc">' + opt.desc + '</div>';
-      card.addEventListener("click", function(){ state.difficulty = opt.key; buildModeScreen(); });
+      card.className = "length-card" + (state.difficulty === opt.key ? " selected" : "") + (locked ? " locked" : "");
+      card.innerHTML = '<div class="l-name">' + opt.name + '</div><div class="l-desc">' + opt.desc + '</div>' +
+        (mastered ? '<div class="lock-reason">\uD83C\uDF96 Mastered \u2014 moved on</div>' :
+         teacherOff ? '<div class="lock-reason">\uD83D\uDD12 Closed by your teacher</div>' : '');
+      if(!locked){
+        card.addEventListener("click", function(){ state.difficulty = opt.key; buildModeScreen(); });
+      }
       diffRow.appendChild(card);
     });
+    // Same auto-advance for difficulty: if the current tier just got locked
+    // (mastered mid-session, or a teacher just closed it), move to the
+    // lowest tier that's actually still open.
+    if(state.masteredTiers[state.difficulty] === true || gameSettings.difficulties[state.difficulty] === false){
+      const openDiff = diffOptions.find(function(o){ return state.masteredTiers[o.key] !== true && gameSettings.difficulties[o.key] !== false; });
+      if(openDiff) state.difficulty = openDiff.key;
+    }
   }
 
   document.getElementById("btn-start").addEventListener("click", function(){
     if(state.selectedTenses.length === 0){
       alert("Pick at least one tense (or Mixed) before launching.");
+      return;
+    }
+    if(gameSettings.modes[state.playMode] === false || gameSettings.difficulties[state.difficulty] === false || state.masteredTiers[state.difficulty] === true){
+      buildModeScreen(); // re-render to reflect the now-locked selection, then bail
+      alert("That mode or difficulty isn't available right now \u2014 pick another and try again.");
       return;
     }
     startGame();
@@ -2003,6 +2258,8 @@
     state.categoryMissStreak = {pronoun:0, tense:0, time:0};
     state.recapTense = null;
     state.forceNoBossNext = false;
+    state.tierHistory = {novice:[], veteran:[], elite:[]};
+    state.tierBumpNote = null;
     const opt = LENGTH_OPTIONS.find(function(o){ return o.key === state.lengthMode; });
     if(opt && opt.questions){ state.questionsTarget = opt.questions; }
     state.pool = shuffledPool();
@@ -2398,17 +2655,25 @@
     // Best-effort telemetry for the teacher-facing per-question analytics.
     submitAnalytics(question.id, question.tense, allCorrect);
 
+    // v1.5: mastery tracking uses the tier this question was actually
+    // RENDERED at, since applyAdaptiveDifficulty below can change
+    // state.difficulty for the *next* question before we're done here.
+    const tierJustPlayed = state.renderDifficulty;
+    recordTierOutcome(tierJustPlayed, allCorrect);
+
     if(allCorrect){
       state.correctCount++;
       state.streak++;
       state.bestStreak = Math.max(state.bestStreak, state.streak);
+      checkInfiniteStreakPromotion();
       const timeBonus = Math.round(Math.max(0, state.timeLeft) * 5);
       const baseGain = 100 + timeBonus;
-      const modifierPct = state.streak * 10; // 10% per streak
+      const modifierPct = streakBonusPct(); // v1.5: scaled by difficulty tier, see STREAK_PCT_PER_TIER
       const gain = Math.round(baseGain * (1 + modifierPct / 100) * DIFFICULTY_SCORE_MULT[state.difficulty]);
       state.score += gain;
       fb.textContent = "TARGET DESTROYED  +" + gain +
         (state.streak > 1 ? "\nSTREAK x" + state.streak + " \u2192 +" + modifierPct + "%" : "");
+      if(state.tierBumpNote){ fb.textContent += "\n" + state.tierBumpNote; state.tierBumpNote = null; }
       fb.className = "feedback ok";
       state.timerBudget = Math.max(30, state.timerBudget - 5);
 
@@ -2732,17 +2997,23 @@
 
     const fb = document.getElementById("feedback");
 
+    // v1.5: same rendered-tier capture as resolveQuestion() above.
+    const tierJustPlayed = state.renderDifficulty;
+    recordTierOutcome(tierJustPlayed, allCorrect);
+
     if(allCorrect){
       state.correctCount++;
       state.streak++;
       state.bestStreak = Math.max(state.bestStreak, state.streak);
+      checkInfiniteStreakPromotion();
       const timeBonus = Math.round(Math.max(0, state.timeLeft) * 5);
       const baseGain = 100 + timeBonus;
-      const modifierPct = state.streak * 10;
+      const modifierPct = streakBonusPct(); // v1.5: scaled by difficulty tier
       const gain = Math.round(baseGain * (1 + modifierPct / 100) * DIFFICULTY_SCORE_MULT[state.difficulty]);
       state.score += gain;
       fb.textContent = "CORRECTED  +" + gain +
         (state.streak > 1 ? "\nSTREAK x" + state.streak + " \u2192 +" + modifierPct + "%" : "");
+      if(state.tierBumpNote){ fb.textContent += "\n" + state.tierBumpNote; state.tierBumpNote = null; }
       fb.className = "feedback ok";
       state.timerBudget = Math.max(30, state.timerBudget - 5);
 
@@ -2907,6 +3178,20 @@
 
   async function endGame(){
     clearInterval(state.timer);
+
+    // v1.5: Tense Coverage bonus \u2014 flat, once, only for Mixed or 3+
+    // individually-picked tenses. Folded straight into state.score so it's
+    // reflected everywhere downstream (submitted entry, rank panel, CSV).
+    const coverageEl = document.getElementById("coverage-bonus");
+    if(coverageQualifies() && state.correctCount > 0){
+      const bonus = state.correctCount * COVERAGE_BONUS_PER_CORRECT;
+      state.score += bonus;
+      coverageEl.textContent = "\uD83C\uDF10 TENSE COVERAGE BONUS: +" + bonus + " (practicing broadly pays off!)";
+      coverageEl.classList.add("show");
+    } else {
+      coverageEl.classList.remove("show");
+    }
+
     document.getElementById("final-score").textContent = state.score;
     const acc = state.totalCount ? Math.round((state.correctCount/state.totalCount)*100) : 0;
     document.getElementById("final-accuracy").textContent = acc + "%";
@@ -3020,6 +3305,23 @@
     }
   }
 
+  /* ============ v1.5: leaderboard name colours + high-score frames ============
+     Purely cosmetic signals so the boldest colours/frames on the board are
+     visibly tied to depth of practice (difficulty tier, and Mixed-tense
+     coverage), not just raw score. */
+  function nameColorClass(difficulty){
+    if(difficulty === "novice") return "name-novice";
+    if(difficulty === "veteran") return "name-veteran";
+    if(difficulty === "elite") return "name-elite";
+    return "";
+  }
+  function frameClass(entry){
+    if(entry.mode !== "mixed") return "";
+    if(entry.difficulty === "elite") return "frame-gold";
+    if(entry.difficulty === "veteran") return "frame-silver";
+    return "";
+  }
+
   async function renderSidebarBoard(list){
     updateClassBadge();
     const all = list || await loadBoard();
@@ -3070,10 +3372,11 @@
     filtered.forEach(function(e, i){
       const row = document.createElement("div");
       const isMe = e.name === state.playerName;
-      row.className = "sidebar-row" + (isMe ? " me" : "");
+      row.className = "sidebar-row" + (isMe ? " me" : "") + (frameClass(e) ? " " + frameClass(e) : "");
       const modeLabel = e.mode === "mixed" ? "Mixed" : (TENSE_LABELS[e.mode] || e.mode);
       const lengthLabel = LENGTH_LABELS[e.length] || e.length;
       const diffLabel = e.difficulty ? (e.difficulty.charAt(0).toUpperCase() + e.difficulty.slice(1)) : "";
+      const nameClass = nameColorClass(e.difficulty);
 
       let diffLine = "";
       if(sidebarState.scope === "friends" && !isMe && myBest !== null){
@@ -3090,7 +3393,7 @@
 
       row.innerHTML =
         '<div class="s-rank">' + (i+1) + '</div>' +
-        '<div class="s-name">' + escapeHtml(e.name) +
+        '<div class="s-name">' + '<span class="' + nameClass + '">' + escapeHtml(e.name) + '</span>' +
           '<span class="s-meta">' + escapeHtml(modeLabel) + ' \u2022 ' + escapeHtml(lengthLabel) + ' \u2022 ' + escapeHtml(diffLabel) + '</span>' +
           diffLine +
         '</div>' +
@@ -3132,15 +3435,16 @@
     }
     sorted.forEach(function(e, i){
       const row = document.createElement("div");
-      row.className = "admin-row";
+      row.className = "admin-row" + (frameClass(e) ? " " + frameClass(e) : "");
       const modeLabel = e.mode === "mixed" ? "Mixed" : (TENSE_LABELS[e.mode] || e.mode || "\u2014");
       const lengthLabel = LENGTH_LABELS[e.length] || e.length || "\u2014";
       const diffLabel = e.difficulty ? (e.difficulty.charAt(0).toUpperCase() + e.difficulty.slice(1)) : "\u2014";
       const dateLabel = e.date ? new Date(e.date).toLocaleString() : "";
+      const nameClass = nameColorClass(e.difficulty);
       row.innerHTML =
         '<div class="a-rank">' + (i+1) + '</div>' +
         '<div class="a-info">' +
-          '<span class="a-name">' + escapeHtml(e.name || "(unnamed)") + '</span>' +
+          '<span class="a-name ' + nameClass + '">' + escapeHtml(e.name || "(unnamed)") + '</span>' +
           '<span class="a-meta">' + escapeHtml(modeLabel) + ' \u2022 ' + escapeHtml(lengthLabel) + ' \u2022 ' + escapeHtml(diffLabel) + (dateLabel ? ' \u2022 ' + escapeHtml(dateLabel) : '') + '</span>' +
         '</div>' +
         '<div class="a-score">' + e.score + '</div>';
@@ -3174,6 +3478,52 @@
     await renderAdminList();
     await renderSidebarBoard();
   }
+
+  /* ============ v1.5: CLASS CONTROLS admin UI ============ */
+  const SETTINGS_MODE_LABELS = {fill:"Grammar Practice", spot:"Spot the Error"};
+  const SETTINGS_DIFF_LABELS = {novice:"Novice", veteran:"Veteran", elite:"Elite"};
+  let pendingSettings = null; // edited in the admin UI, not yet saved
+
+  function renderAdminSettings(){
+    pendingSettings = JSON.parse(JSON.stringify(gameSettings));
+    renderSettingsGrid("settings-modes-grid", "modes", SETTINGS_MODE_LABELS);
+    renderSettingsGrid("settings-diff-grid", "difficulties", SETTINGS_DIFF_LABELS);
+    document.getElementById("settings-save-status").textContent = "";
+  }
+
+  function renderSettingsGrid(containerId, group, labels){
+    const grid = document.getElementById(containerId);
+    grid.innerHTML = "";
+    Object.keys(labels).forEach(function(key){
+      const on = pendingSettings[group][key] !== false;
+      const chip = document.createElement("label");
+      chip.className = "settings-toggle " + (on ? "on" : "off");
+      chip.innerHTML = '<input type="checkbox" ' + (on ? "checked" : "") + ' /> ' + labels[key] + (on ? " \u2014 open" : " \u2014 closed");
+      const cb = chip.querySelector("input");
+      cb.addEventListener("change", function(){
+        pendingSettings[group][key] = cb.checked;
+        renderSettingsGrid(containerId, group, labels);
+      });
+      grid.appendChild(chip);
+    });
+  }
+
+  document.getElementById("btn-settings-save").addEventListener("click", async function(){
+    const status = document.getElementById("settings-save-status");
+    const anyModeOn = Object.keys(pendingSettings.modes).some(function(k){ return pendingSettings.modes[k]; });
+    const anyDiffOn = Object.keys(pendingSettings.difficulties).some(function(k){ return pendingSettings.difficulties[k]; });
+    if(!anyModeOn || !anyDiffOn){
+      status.textContent = "Keep at least one practice style and one difficulty open.";
+      status.style.color = "var(--danger)";
+      return;
+    }
+    status.textContent = "Saving\u2026";
+    status.style.color = "var(--text-dim)";
+    const ok = await saveSettings(pendingSettings);
+    status.textContent = ok ? "\u2713 Saved \u2014 live for every device now." : "Save failed \u2014 check your admin secret / connection.";
+    status.style.color = ok ? "var(--ok)" : "var(--danger)";
+    if(ok) renderAdminSettings();
+  });
 
   document.getElementById("btn-admin-refresh").addEventListener("click", renderAdminList);
   document.getElementById("btn-admin-delete-all").addEventListener("click", adminDeleteAll);
@@ -3416,6 +3766,7 @@
   renderSidebarBoard();
   checkBackendConnection();
   updateMuteBtn();
+  loadSettings().then(function(){ buildModeScreen(); }); // v1.5: re-render once Class Controls are known
 })();
 </script>
 </body>
