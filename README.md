@@ -37,10 +37,16 @@ or renamed the Worker in `wrangler.toml`.
 
 ## 3. Set the admin secret
 
-This is the passphrase that lets the "nebula-cipher-9" admin login in
-the game actually delete entries. It must be set as a Worker **secret**
-(not written into any file, so it's never in source control or visible in
-the deployed code):
+The game's Admin Console (Teacher / Admin Login, on the login screen) uses:
+
+- **Admin name:** `Palpatine`
+- **Password:** `Order-66`
+
+Logging in there only unlocks the console *client-side*. The password
+above is also what gets sent to the Worker as `X-Admin-Secret` on every
+delete request, and the Worker independently checks it before touching KV
+\u2014 so it must also be set as a Worker **secret** (never written into any
+file, so it's never in source control or visible in the deployed code):
 
 ```
 wrangler secret put ADMIN_SECRET
@@ -49,19 +55,17 @@ wrangler secret put ADMIN_SECRET
 When prompted, enter exactly:
 
 ```
-nebula-cipher-9
+Order-66
 ```
 
-(This is the same value already hard-coded as `ADMIN_CALLSIGN` in the game's
-HTML \u2014 typing it into the "Pilot callsign" field is what routes a player
-into the Admin Console. The Worker then double-checks it on every delete
-request, so even someone reading the game's source code can't delete scores
-without also knowing this secret matches what's configured here.)
+Both sides must match exactly, or every delete request will be rejected
+with "the server rejected the request" even though the console itself
+opened fine.
 
-**Want a different / stronger passphrase?** Pick your own, then:
+**Want a different / stronger password?** Pick your own, then:
 1. Run `wrangler secret put ADMIN_SECRET` again with the new value.
-2. Update the `ADMIN_CALLSIGN` constant near the top of the game's
-   `<script>` block (search for `ADMIN_CALLSIGN`) to match exactly.
+2. Update the `ADMIN_NAME` / `ADMIN_PASSWORD` constants near the top of
+   the game's `<script>` block (search for `ADMIN_PASSWORD`) to match.
 Both sides must always match.
 
 ## 4. Point the game at your deployed Worker
@@ -94,6 +98,8 @@ leaderboard through your Worker.
 | View question analytics | Anyone | \u2014 (public endpoint) |
 | Log a question attempt | Anyone | \u2014 (public endpoint) |
 | Reset question analytics | Only someone who knows the admin secret | **Server-side**, in the Worker |
+| View Class Controls (modes/difficulties open) | Anyone | \u2014 (public endpoint) |
+| Change Class Controls | Only someone who knows the admin secret | **Server-side**, in the Worker |
 
 Question analytics (the new "per-question error rate" table in the Admin
 Console) only ever stores aggregate counts per question id \u2014 attempts,
@@ -106,6 +112,19 @@ JavaScript, someone reading the HTML source can see the trigger phrase that
 opens the Admin Console screen, but they still can't actually delete
 anything unless they also know the secret configured with `wrangler secret
 put` \u2014 which never appears in any file you host or share.
+
+## Class Controls (v1.5)
+
+The Admin Console's "Class Controls" panel lets you temporarily switch off
+a practice style (Grammar Practice / Spot the Error) or a difficulty tier
+(Novice / Veteran / Elite) class-wide \u2014 useful for, say, an assessment
+week where you only want Elite attempts counting. It's backed by
+`GET/POST /api/settings`, stored under its own key in the same
+`LEADERBOARD` KV namespace (no new namespace or redeploy needed). Reads
+are public so every pupil's device picks up the current settings the next
+time they load the mode-select screen; writes require the admin secret,
+same as deletes. Leaving everything toggled on behaves exactly like v1.4.2
+had no Class Controls at all.
 
 ## Class codes and weekly seasons
 
@@ -162,6 +181,30 @@ another filter over the same array.
   Commands), teacher-uploadable custom question sets via CSV, CSV export
   of session results, local (per-device) campaign persistence, per-boss
   Morse-code voice lines, and a streak/combo decay indicator.
+- **v1.5** \u2014 Curriculum-outcome pass: makes broad, deep practice the
+  clearly best path to a top score, rather than grinding Novice + Simple
+  Past.
+  - Streak bonus now scales BY difficulty tier instead of a flat 10%: Novice
+    +5%/streak (cap 50%), Veteran +10%/streak (cap 100%), Elite +15%/streak
+    (cap 200%).
+  - New flat, once-per-session **Tense Coverage bonus** for choosing Mixed
+    (or 3+ individually-picked tenses) \u2014 +40 points per correct answer,
+    added at mission end.
+  - Adaptive difficulty now also goes **up**: 8-out-of-the-last-10 rolling
+    accuracy at a tier permanently locks that tier out (saved to the
+    pupil's campaign profile) and bumps the session up one tier; Infinite
+    Mode additionally auto-promotes on a 10-answer live streak.
+  - Leaderboard names are colour-coded by difficulty reached (Novice red,
+    Veteran silver, Elite gold); Mixed-tense high scores get a gold
+    (Elite) or silver (Veteran) frame.
+  - New **Class Controls** in the Admin Console \u2014 teacher-toggleable,
+    server-synced on/off switches per practice style (Grammar Practice /
+    Spot the Error) and difficulty tier (Novice / Veteran / Elite), backed
+    by a new public-read/admin-write `/api/settings` endpoint.
+  - Backend now ships in two flavors with an identical REST contract \u2014
+    Cloudflare Workers (this folder) and Firebase Cloud Functions +
+    Firestore (`../firebase/`). Pick one; `speech-invaders.html` only
+    needs its `API_BASE` constant pointed at whichever you deploy.
 
 Whole-class/projector mode (shared live session, teacher-controlled
 pacing, server-side answer validation) is scoped but not yet built \u2014 it
