@@ -188,14 +188,15 @@ const DEFAULT_SETTINGS = {
   questionTypes: { tenseAspect: true, reportedSpeech: true, voiceConversion: true, custom: true }
 };
 
-function corsHeaders(){
+function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Secret",
+    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Secret, signature-agent", 
     "Content-Type": "application/json"
   };
 }
+
 
 function json(data, status){
   return new Response(JSON.stringify(data), { status: status || 200, headers: corsHeaders() });
