@@ -206,7 +206,24 @@ another filter over the same array.
     Firestore (`../firebase/`). Pick one; `speech-invaders.html` only
     needs its `API_BASE` constant pointed at whichever you deploy.
 
-Whole-class/projector mode (shared live session, teacher-controlled
-pacing, server-side answer validation) is scoped but not yet built \u2014 it
-needs a Durable Object-backed redesign of this Worker, which is a
-separate project from the static-file updates above.
+- **v1.5.1** \u2014 Team Leaderboard is now a live push, not a poll. The
+  projector screen opens a WebSocket to a new `TeamChallengeRoom` Durable
+  Object (see `worker.js`) instead of re-fetching `/api/leaderboard` every
+  7 seconds; every score submission now also pushes straight to that
+  screen the instant the Worker accepts it. KV is still the only source of
+  truth for scores \u2014 the Durable Object's embedded SQLite database holds
+  nothing but a short rolling log of the last 50 broadcasts, used only so
+  a projector that briefly drops (wifi blip, laptop sleep) can replay what
+  it missed the moment it reconnects. A 20s fallback poll covers the rest
+  of the gap if reconnecting takes a while, so the screen degrades
+  gracefully instead of going stale.
+  This runs on the **Workers Free plan** \u2014 it uses the SQLite storage
+  backend for Durable Objects (`new_sqlite_classes` in `wrangler.toml`),
+  which unlike the older key-value backend doesn't require the Paid plan.
+  Run `wrangler deploy` as usual; the migration creates the class
+  automatically on first deploy.
+
+Whole-class/projector mode with teacher-controlled pacing and server-side
+answer validation (beyond just the leaderboard going live) is still scoped
+but not built \u2014 that's a bigger redesign than this Durable Object, which
+only covers the Team Leaderboard's live totals.
