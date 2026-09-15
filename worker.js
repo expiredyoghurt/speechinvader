@@ -184,7 +184,8 @@ const DEFAULT_SETTINGS = {
   categories: {
     simplePast: true, pastProgressive: true, pastPerfect: true, pastPerfectProgressive: true,
     reportedQuestions: true, reportedCommands: true, activeToPassive: true, passiveToActive: true
-  }
+  },
+  questionTypes: { tenseAspect: true, reportedSpeech: true, voiceConversion: true, custom: true }
 };
 
 function corsHeaders(){
@@ -272,15 +273,17 @@ async function readSettings(env){
   return {
     modes: Object.assign({}, DEFAULT_SETTINGS.modes, stored.modes || {}),
     difficulties: Object.assign({}, DEFAULT_SETTINGS.difficulties, stored.difficulties || {}),
-    categories: Object.assign({}, DEFAULT_SETTINGS.categories, stored.categories || {})
+    categories: Object.assign({}, DEFAULT_SETTINGS.categories, stored.categories || {}),
+    questionTypes: Object.assign({}, DEFAULT_SETTINGS.questionTypes, stored.questionTypes || {})
   };
 }
 
 function sanitizeSettings(body){
   if(!body || typeof body !== "object") return null;
-  const out = { modes: {}, difficulties: {}, categories: {} };
+  const out = { modes: {}, difficulties: {}, categories: {}, questionTypes: {} };
   const modeKeys = ["fill", "spot"];
   const diffKeys = ["novice", "veteran", "elite"];
+  const questionTypeKeys = ["tenseAspect", "reportedSpeech", "voiceConversion", "custom"];
   const categoryKeys = ["simplePast", "pastProgressive", "pastPerfect", "pastPerfectProgressive", "reportedQuestions", "reportedCommands", "activeToPassive", "passiveToActive"];
   modeKeys.forEach(function(k){
     if(body.modes && typeof body.modes === "object" && typeof body.modes[k] === "boolean"){
@@ -290,6 +293,11 @@ function sanitizeSettings(body){
   diffKeys.forEach(function(k){
     if(body.difficulties && typeof body.difficulties === "object" && typeof body.difficulties[k] === "boolean"){
       out.difficulties[k] = body.difficulties[k];
+    }
+  });
+  questionTypeKeys.forEach(function(k){
+    if(body.questionTypes && typeof body.questionTypes === "object" && typeof body.questionTypes[k] === "boolean"){
+      out.questionTypes[k] = body.questionTypes[k];
     }
   });
   categoryKeys.forEach(function(k){
@@ -443,7 +451,8 @@ export default {
         const merged = {
           modes: Object.assign({}, current.modes, incoming.modes),
           difficulties: Object.assign({}, current.difficulties, incoming.difficulties),
-          categories: Object.assign({}, current.categories, incoming.categories)
+          categories: Object.assign({}, current.categories, incoming.categories),
+          questionTypes: Object.assign({}, current.questionTypes, incoming.questionTypes)
         };
         await env.LEADERBOARD.put(SETTINGS_KEY, JSON.stringify(merged));
         return json({ ok: true, settings: merged });

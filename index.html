@@ -501,6 +501,8 @@
     font-family:'Press Start 2P'; font-size:22px; color:var(--cyan); text-shadow:0 0 14px rgba(77,238,234,0.4);
   }
   .team-board-session{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; }
+  #team-live-status.live{ color:var(--ok); }
+  #team-live-status.reconnecting{ color:var(--amber); }
   .team-board-controls{ display:flex; gap:8px; flex-wrap:wrap; }
   .team-group-picker{
     background:#0c1128; border:2px solid var(--grid); border-radius:8px; padding:14px 16px; margin-bottom:20px;
@@ -614,7 +616,7 @@
   <div class="app">
 
   <div class="title">SPEECH&nbsp;INVADERS</div>
-  <div class="subtitle">reported speech target practice</div>
+  <div class="subtitle">grammar transformation target practice</div>
 
   <!-- LOGIN SCREEN -->
   <div class="screen" id="screen-login">
@@ -769,6 +771,10 @@
       <div class="settings-grid" id="settings-modes-grid"></div>
       <label>Difficulty tier</label>
       <div class="settings-grid" id="settings-diff-grid"></div>
+      <label>Question type</label>
+      <div class="settings-grid" id="settings-question-type-grid"></div>
+      <label>Grammar categories</label>
+      <div class="settings-grid" id="settings-category-grid"></div>
       <div class="btn-row">
         <button class="btn secondary" id="btn-settings-save">Save Class Controls</button>
         <span id="settings-save-status"></span>
@@ -799,6 +805,7 @@
     <div class="team-board-topbar">
       <div class="team-board-title">TEAM LEADERBOARD</div>
       <div class="team-board-session" id="team-session-info"></div>
+      <div class="team-board-session" id="team-live-status"></div>
       <div class="team-board-controls">
         <button type="button" class="btn-secondary" id="btn-team-groups-toggle">Choose Groups</button>
         <button type="button" class="btn-secondary" id="btn-team-new-session">Start New Session</button>
@@ -920,6 +927,635 @@
   // Every question, regardless of tense, reduces to the same 3-blank shape:
   // [ pronoun ] [ verb-or-auxiliary backshift ] ... fixed object text ... [ time-shift ]
   // parts is an ordered array of {type:'text', v} / {type:'blank', id, answer:[...alts]}
+  // v1.6: fixed Active/Passive Voice transformation banks supplied by the teacher.
+  const ACTIVE_TO_PASSIVE = [
+  {
+    "id": 1,
+    "question": "The diligent prefects were organizing the school carnival when the heavy downpour started.",
+    "target": "The school carnival",
+    "answer": "was being organized by the diligent prefects when the heavy downpour started."
+  },
+  {
+    "id": 2,
+    "question": "Someone has stolen Mr Tan’s expensive watch from his desk.",
+    "target": "Mr Tan’s",
+    "answer": "expensive watch has been stolen from his desk."
+  },
+  {
+    "id": 3,
+    "question": "The mechanic will repair my mother’s car by noon tomorrow.",
+    "target": "My mother’s car",
+    "answer": "will be repaired by the mechanic by noon tomorrow."
+  },
+  {
+    "id": 4,
+    "question": "The strict librarian admonished the boisterous boys for making noise in the quiet reading room.",
+    "target": "The boisterous boys",
+    "answer": "were admonished by the strict librarian for making noise in the quiet reading room."
+  },
+  {
+    "id": 5,
+    "question": "A fierce dog chased the frightened postman down the street.",
+    "target": "The frightened postman",
+    "answer": "was chased down the street by a fierce dog."
+  },
+  {
+    "id": 6,
+    "question": "The catering company is preparing a lavish feast for the distinguished guests.",
+    "target": "A lavish feast",
+    "answer": "is being prepared for the distinguished guests by the catering company."
+  },
+  {
+    "id": 7,
+    "question": "Nobody had informed the pupils about the sudden cancellation of the learning journey.",
+    "target": "The pupils",
+    "answer": "had not been informed about the sudden cancellation of the learning journey."
+  },
+  {
+    "id": 8,
+    "question": "Our science teacher conducts fascinating experiments in the school laboratory every Friday.",
+    "target": "Fascinating experiments",
+    "answer": "are conducted in the school laboratory by our science teacher every Friday."
+  },
+  {
+    "id": 9,
+    "question": "The paramedics immediately treated the injured athlete after his fall on the track.",
+    "target": "The injured athlete",
+    "answer": "was treated immediately by the paramedics after his fall on the track."
+  },
+  {
+    "id": 10,
+    "question": "The residents should keep the residential neighborhood clean at all times.",
+    "target": "The residential neighborhood",
+    "answer": "should be kept clean by the residents at all times."
+  },
+  {
+    "id": 11,
+    "question": "The prefect on duty was reprimanding the mischievous pupil for littering in the canteen.",
+    "target": "The mischievous pupil",
+    "answer": "was being reprimanded by the prefect on duty for littering in the canteen."
+  },
+  {
+    "id": 12,
+    "question": "The structural engineer will inspect the old bridge before the monsoon season begins.",
+    "target": "The old bridge",
+    "answer": "will be inspected by the structural engineer before the monsoon season begins."
+  },
+  {
+    "id": 13,
+    "question": "Wild animals have destroyed the farmer’s crops during the storm.",
+    "target": "The farmer’s crops",
+    "answer": "have been destroyed by wild animals during the storm."
+  },
+  {
+    "id": 14,
+    "question": "The school choir sang a beautiful song during the annual Speech Day ceremony.",
+    "target": "A beautiful song",
+    "answer": "was sung by the school choir during the annual Speech Day ceremony."
+  },
+  {
+    "id": 15,
+    "question": "The experienced doctor is treating the sick patient in the isolation ward.",
+    "target": "The sick patient",
+    "answer": "is being treated in the isolation ward by the experienced doctor."
+  },
+  {
+    "id": 16,
+    "question": "The discipline master had punished the dishonest boy before his parents arrived at school.",
+    "target": "The dishonest boy",
+    "answer": "had been punished by the discipline master before his parents arrived at school."
+  },
+  {
+    "id": 17,
+    "question": "Art lovers admire these exquisite watercolor paintings for their fine details.",
+    "target": "These exquisite watercolor paintings",
+    "answer": "are admired by art lovers for their fine details."
+  },
+  {
+    "id": 18,
+    "question": "The school principal presented prestigious awards to the top performers during assembly.",
+    "target": "Prestigious awards",
+    "answer": "were presented to the top performers by the school principal during assembly."
+  },
+  {
+    "id": 19,
+    "question": "The furious owner ousted the intruder from the private property immediately.",
+    "target": "The intruder",
+    "answer": "was ousted from the private property immediately by the furious owner."
+  },
+  {
+    "id": 20,
+    "question": "Organizers are distributing colorful balloons to the enthusiastic children at the booth.",
+    "target": "Colorful balloons",
+    "answer": "are being distributed to the enthusiastic children by organizers at the booth."
+  },
+  {
+    "id": 21,
+    "question": "The diligent janitor cleans all the classrooms in our block thoroughly every evening.",
+    "target": "All the classrooms",
+    "answer": "are cleaned thoroughly by the diligent janitor every evening."
+  },
+  {
+    "id": 22,
+    "question": "The traffic warden had issued a parking ticket to the careless driver before he returned.",
+    "target": "A parking ticket",
+    "answer": "had been issued to the careless driver by the traffic warden before he returned."
+  },
+  {
+    "id": 23,
+    "question": "The school management will erect a new sports complex next year.",
+    "target": "A new sports complex",
+    "answer": "will be erected by the school management next year."
+  },
+  {
+    "id": 24,
+    "question": "A team of experts has thoroughly investigated the mysterious incident in the forest.",
+    "target": "The mysterious incident",
+    "answer": "has been thoroughly investigated by a team of experts."
+  },
+  {
+    "id": 25,
+    "question": "The strict conductor was guiding the school orchestra during the final rehearsal.",
+    "target": "The school orchestra",
+    "answer": "was being guided by the strict conductor during the final rehearsal."
+  },
+  {
+    "id": 26,
+    "question": "The energetic puppies tore the velvet cushions into shreds.",
+    "target": "The velvet cushions",
+    "answer": "were torn into shreds by the energetic puppies."
+  },
+  {
+    "id": 27,
+    "question": "The coast guard rescued the stranded sailors from the sinking boat.",
+    "target": "The stranded sailors",
+    "answer": "were rescued from the sinking boat by the coast guard."
+  },
+  {
+    "id": 28,
+    "question": "Experienced instructors teach advanced swimming lessons to young athletes at the complex.",
+    "target": "Advanced swimming lessons",
+    "answer": "are taught to young athletes by experienced instructors at the complex."
+  },
+  {
+    "id": 29,
+    "question": "The talented chef is baking a massive chocolate cake for the wedding banquet.",
+    "target": "A massive chocolate cake",
+    "answer": "is being baked for the wedding banquet by the talented chef."
+  },
+  {
+    "id": 30,
+    "question": "The pest control officers had sprayed pesticide in the estate before the outbreak occurred.",
+    "target": "Pesticide",
+    "answer": "had been sprayed in the estate by the pest control officers before the outbreak occurred."
+  },
+  {
+    "id": 31,
+    "question": "The angry crowd confronted the deceitful salesman outside the shop.",
+    "target": "The deceitful salesman",
+    "answer": "was confronted by the angry crowd outside the shop."
+  },
+  {
+    "id": 32,
+    "question": "Workers will pave the damaged road during the weekend.",
+    "target": "The damaged road",
+    "answer": "will be paved by workers during the weekend."
+  },
+  {
+    "id": 33,
+    "question": "Nobody has solved the challenging math problem in the competition yet.",
+    "target": "The challenging math problem",
+    "answer": "has not been solved by anyone in the competition yet."
+  },
+  {
+    "id": 34,
+    "question": "The park rangers were closely observing the rare bird through their binoculars.",
+    "target": "The rare bird",
+    "answer": "was being observed closely through their binoculars by the park rangers."
+  },
+  {
+    "id": 35,
+    "question": "The school nurse measures the students' height and weight every year.",
+    "target": "The students' height and weight",
+    "answer": "are measured by the school nurse every year."
+  },
+  {
+    "id": 36,
+    "question": "The security guard locked all the heavy iron gates after office hours.",
+    "target": "All the heavy iron gates",
+    "answer": "were locked by the security guard after office hours."
+  },
+  {
+    "id": 37,
+    "question": "The local authority has built a new community club near our housing estate.",
+    "target": "A new community club",
+    "answer": "has been built near our housing estate by the local authority."
+  },
+  {
+    "id": 38,
+    "question": "The software developer will update the school portal tonight.",
+    "target": "The school portal",
+    "answer": "will be updated by the software developer tonight."
+  },
+  {
+    "id": 39,
+    "question": "The environmentalists were planting young saplings along the riverbank yesterday morning.",
+    "target": "Young saplings",
+    "answer": "were being planted along the riverbank yesterday morning by the environmentalists."
+  },
+  {
+    "id": 40,
+    "question": "The art teacher praised the creative student for her stunning sculpture.",
+    "target": "The creative student",
+    "answer": "was praised by the art teacher for her stunning sculpture."
+  },
+  {
+    "id": 41,
+    "question": "A famous author has written this inspiring autobiography.",
+    "target": "This inspiring autobiography",
+    "answer": "has been written by a famous author."
+  },
+  {
+    "id": 42,
+    "question": "The IT department is repairing the broken computers in the media laboratory.",
+    "target": "The broken computers",
+    "answer": "are being repaired by the IT department in the media laboratory."
+  },
+  {
+    "id": 43,
+    "question": "The tour guide had led the tourists safely through the dense jungle.",
+    "target": "The tourists",
+    "answer": "had been led safely through the dense jungle by the tour guide."
+  },
+  {
+    "id": 44,
+    "question": "Volunteers distribute hot meals to the elderly residents every Sunday afternoon.",
+    "target": "Hot meals",
+    "answer": "are distributed to the elderly residents by volunteers every Sunday afternoon."
+  },
+  {
+    "id": 45,
+    "question": "The police officer arrested the suspected shoplifter outside the department store.",
+    "target": "The suspected shoplifter",
+    "answer": "was arrested outside the department store by the police officer."
+  },
+  {
+    "id": 46,
+    "question": "The judges will evaluate all the science project models tomorrow morning.",
+    "target": "All the science project models",
+    "answer": "will be evaluated by the judges tomorrow morning."
+  },
+  {
+    "id": 47,
+    "question": "The loud thunder frightened the young children during the severe storm.",
+    "target": "The young children",
+    "answer": "were frightened by the loud thunder during the severe storm."
+  },
+  {
+    "id": 48,
+    "question": "The construction workers were repairing the leaky roof when the rain started.",
+    "target": "The leaky roof",
+    "answer": "was being repaired by the construction workers when the rain started."
+  },
+  {
+    "id": 49,
+    "question": "Someone has stolen the valuable antique vase from the museum display.",
+    "target": "The valuable antique vase",
+    "answer": "has been stolen from the museum display."
+  },
+  {
+    "id": 50,
+    "question": "The librarian arranges the new storybooks on the display shelves every week.",
+    "target": "The new storybooks",
+    "answer": "are arranged on the display shelves by the librarian every week."
+  }
+];
+
+  const PASSIVE_TO_ACTIVE = [
+  {
+    "id": 51,
+    "question": "The missing stray cat was rescued from the tall tree by the brave firefighter.",
+    "target": "The brave firefighter",
+    "answer": "rescued the missing stray cat from the tall tree."
+  },
+  {
+    "id": 52,
+    "question": "A brand-new library will be opened in our housing estate by the Minister next month.",
+    "target": "The Minister",
+    "answer": "will open a brand-new library in our housing estate next month."
+  },
+  {
+    "id": 53,
+    "question": "The delicious birthday cake was being baked by my grandmother when we arrived home.",
+    "target": "My grandmother",
+    "answer": "was baking the delicious birthday cake when we arrived home."
+  },
+  {
+    "id": 54,
+    "question": "The final goal had been scored by our team captain before the referee blew the whistle.",
+    "target": "Our team captain",
+    "answer": "had scored the final goal before the referee blew the whistle."
+  },
+  {
+    "id": 55,
+    "question": "Important notifications are sent to parents through the mobile application by the principal.",
+    "target": "The principal",
+    "answer": "sends important notifications to parents through the mobile application."
+  },
+  {
+    "id": 56,
+    "question": "All the library books must be returned to the counter by the students before noon.",
+    "target": "The students",
+    "answer": "must return all the library books to the counter before noon."
+  },
+  {
+    "id": 57,
+    "question": "A clear explanation was given to the confused audience by the speaker.",
+    "target": "The speaker",
+    "answer": "gave a clear explanation to the confused audience."
+  },
+  {
+    "id": 58,
+    "question": "The broken vase has been replaced with a new one by the apologetic child.",
+    "target": "The apologetic child",
+    "answer": "has replaced the broken vase with a new one."
+  },
+  {
+    "id": 59,
+    "question": "The main road was closed by the traffic police to clear the oil spill.",
+    "target": "The traffic police",
+    "answer": "closed the main road to clear the oil spill."
+  },
+  {
+    "id": 60,
+    "question": "Detailed feedback on the creative writing composition was being provided to Sarah by her teacher.",
+    "target": "Sarah’s teacher",
+    "answer": "was providing detailed feedback on the creative writing composition to Sarah."
+  },
+  {
+    "id": 61,
+    "question": "A beautiful mural was being painted on the wall by the artistic pupils when the bell rang.",
+    "target": "The artistic pupils",
+    "answer": "were painting a beautiful mural on the wall when the bell rang."
+  },
+  {
+    "id": 62,
+    "question": "The lost wallet was handed over to the police officer by an honest passer-by.",
+    "target": "An honest passer-by",
+    "answer": "handed over the lost wallet to the police officer."
+  },
+  {
+    "id": 63,
+    "question": "The national anthem is sung enthusiastically by all students during morning assembly.",
+    "target": "All students",
+    "answer": "sing the national anthem enthusiastically during morning assembly."
+  },
+  {
+    "id": 64,
+    "question": "The detailed report will be submitted to the principal by the English department head tomorrow.",
+    "target": "The English department head",
+    "answer": "will submit the detailed report to the principal tomorrow."
+  },
+  {
+    "id": 65,
+    "question": "The stray dog had been adopted by a kind lady before the shelter closed down.",
+    "target": "A kind lady",
+    "answer": "had adopted the stray dog before the shelter closed down."
+  },
+  {
+    "id": 66,
+    "question": "Fresh vegetables are bought from the market by my mother every morning.",
+    "target": "My mother",
+    "answer": "buys fresh vegetables from the market every morning."
+  },
+  {
+    "id": 67,
+    "question": "The difficult problem has been solved by the clever boy in a few minutes.",
+    "target": "The clever boy",
+    "answer": "has solved the difficult problem in a few minutes."
+  },
+  {
+    "id": 68,
+    "question": "The school field was being cleared of litter by the helpful volunteers yesterday afternoon.",
+    "target": "The helpful volunteers",
+    "answer": "were clearing the school field of litter yesterday afternoon."
+  },
+  {
+    "id": 69,
+    "question": "Strategic decisions will be made by the committee members during the annual meeting.",
+    "target": "The committee members",
+    "answer": "will make strategic decisions during the annual meeting."
+  },
+  {
+    "id": 70,
+    "question": "The old wooden shed was completely destroyed by the raging fire.",
+    "target": "The raging fire",
+    "answer": "completely destroyed the old wooden shed."
+  },
+  {
+    "id": 71,
+    "question": "A captivating story was read to the kindergarten children by the patient librarian.",
+    "target": "The patient librarian",
+    "answer": "read a captivating story to the kindergarten children."
+  },
+  {
+    "id": 72,
+    "question": "Severe flood damage has been suffered by the coastal village after the violent typhoon.",
+    "target": "The coastal village",
+    "answer": "has suffered severe flood damage after the violent typhoon."
+  },
+  {
+    "id": 73,
+    "question": "Clear instructions were being issued to the recruits by the drill sergeant.",
+    "target": "The drill sergeant",
+    "answer": "was issuing clear instructions to the recruits."
+  },
+  {
+    "id": 74,
+    "question": "A comprehensive review of the safety guidelines will be conducted by the safety officer next week.",
+    "target": "The safety officer",
+    "answer": "will conduct a comprehensive review of the safety guidelines next week."
+  },
+  {
+    "id": 75,
+    "question": "Crucial evidence had been uncovered by the sharp detective before the trial began.",
+    "target": "The sharp detective",
+    "answer": "had uncovered crucial evidence before the trial began."
+  },
+  {
+    "id": 76,
+    "question": "Useful study notes are shared among classmates by the generous class monitor every exam season.",
+    "target": "The generous class monitor",
+    "answer": "shares useful study notes among classmates every exam season."
+  },
+  {
+    "id": 77,
+    "question": "The leaking pipe was repaired by the skilled plumber within an hour.",
+    "target": "The skilled plumber",
+    "answer": "repaired the leaking pipe within an hour."
+  },
+  {
+    "id": 78,
+    "question": "Tasty sandwiches were being prepared for the outdoor picnic by my aunt.",
+    "target": "My aunt",
+    "answer": "was preparing tasty sandwiches for the outdoor picnic."
+  },
+  {
+    "id": 79,
+    "question": "The entire auditorium has been renovated by the contractors recently.",
+    "target": "The contractors",
+    "answer": "have renovated the entire auditorium recently."
+  },
+  {
+    "id": 80,
+    "question": "Strict rules must be observed by all park visitors to protect the wildlife.",
+    "target": "All park visitors",
+    "answer": "must observe strict rules to protect the wildlife."
+  },
+  {
+    "id": 81,
+    "question": "A mesmerizing performance was delivered by the lead actor at the theater last night.",
+    "target": "The lead actor",
+    "answer": "delivered a mesmerizing performance at the theater last night."
+  },
+  {
+    "id": 82,
+    "question": "New computer software will be installed by the technical team over the weekend.",
+    "target": "The technical team",
+    "answer": "will install new computer software over the weekend."
+  },
+  {
+    "id": 83,
+    "question": "The stray cat had been rescued by the animal welfare organization before the storm hit.",
+    "target": "The animal welfare organization",
+    "answer": "had rescued the stray cat before the storm hit."
+  },
+  {
+    "id": 84,
+    "question": "Fresh fruit juices are served to the customers by the waiter every afternoon.",
+    "target": "The waiter",
+    "answer": "serves fresh fruit juices to the customers every afternoon."
+  },
+  {
+    "id": 85,
+    "question": "A gold medal was won by the talented swimmer in the national championship.",
+    "target": "The talented swimmer",
+    "answer": "won a gold medal in the national championship."
+  },
+  {
+    "id": 86,
+    "question": "A series of workshops was being conducted by the guest lecturer throughout the morning.",
+    "target": "The guest lecturer",
+    "answer": "was conducting a series of workshops throughout the morning."
+  },
+  {
+    "id": 87,
+    "question": "The important document has been signed by the managing director.",
+    "target": "The managing director",
+    "answer": "has signed the important document."
+  },
+  {
+    "id": 88,
+    "question": "The heavy furniture will be moved to the storage room by the movers tomorrow.",
+    "target": "The movers",
+    "answer": "will move the heavy furniture to the storage room tomorrow."
+  },
+  {
+    "id": 89,
+    "question": "A strict warning was given to the reckless driver by the traffic constable.",
+    "target": "The traffic constable",
+    "answer": "gave a strict warning to the reckless driver."
+  },
+  {
+    "id": 90,
+    "question": "An informative newsletter is published monthly by the school editorial board.",
+    "target": "The school editorial board",
+    "answer": "publishes an informative newsletter monthly."
+  },
+  {
+    "id": 91,
+    "question": "The fallen branches were being removed from the runway by the airport workers.",
+    "target": "The airport workers",
+    "answer": "were removing the fallen branches from the runway."
+  },
+  {
+    "id": 92,
+    "question": "The mystery novel had been recommended to me by my best friend before I bought it.",
+    "target": "My best friend",
+    "answer": "had recommended the mystery novel to me before I bought it."
+  },
+  {
+    "id": 93,
+    "question": "The trophy was presented to the winning team by the school principal.",
+    "target": "The school principal",
+    "answer": "presented the trophy to the winning team."
+  },
+  {
+    "id": 94,
+    "question": "Energy-saving bulbs are installed in all classrooms by the school operations manager.",
+    "target": "The school operations manager",
+    "answer": "installs energy-saving bulbs in all classrooms."
+  },
+  {
+    "id": 95,
+    "question": "A brand-new playground will be constructed by the local council next month.",
+    "target": "The local council",
+    "answer": "will construct a brand-new playground next month."
+  },
+  {
+    "id": 96,
+    "question": "The old manuscripts have been preserved carefully by the dedicated museum curator.",
+    "target": "The dedicated museum curator",
+    "answer": "has preserved the old manuscripts carefully."
+  },
+  {
+    "id": 97,
+    "question": "The complex code was being debugged by the programmer late into the night.",
+    "target": "The programmer",
+    "answer": "was debugging the complex code late into the night."
+  },
+  {
+    "id": 98,
+    "question": "An emergency meeting was called by the resident committee to address the security issues.",
+    "target": "The resident committee",
+    "answer": "called an emergency meeting to address the security issues."
+  },
+  {
+    "id": 99,
+    "question": "The school rules should be followed strictly by all students.",
+    "target": "All students",
+    "answer": "should follow the school rules strictly."
+  },
+  {
+    "id": 100,
+    "question": "A delicious three-course meal had been prepared by the executive chef before the guests arrived.",
+    "target": "The executive chef",
+    "answer": "had prepared a delicious three-course meal before the guests arrived."
+  }
+];
+
+  function buildVoiceBank(category, source){
+    return source.map(function(item, i){
+      // The target phrase is displayed, followed by one full-clause answer blank.
+      // This keeps the supplied question/answer wording intact while allowing
+      // all three difficulty tiers to use the same transformation task.
+      const prefix = item.target + " ";
+      const parts = [
+        {type:"text", v:prefix},
+        {type:"blank", id:"full", answer:[item.answer]}
+      ];
+      return {
+        id: category + "_" + i,
+        tense: category,
+        direct: item.question,
+        parts: parts,
+        compactParts: parts,
+        wrong: null,
+        voiceQuestion: true
+      };
+    });
+  }
+
   function buildBank(category){
     const bank = [];
     for(let i=0;i<VERBS.length;i++){
@@ -1070,6 +1706,8 @@
     pastPerfectProgressive:"Past Perfect Progressive",
     reportedQuestions:"Reported Questions",
     reportedCommands:"Reported Commands",
+    activeToPassive:"Active Voice to Passive Voice",
+    passiveToActive:"Passive Voice to Active Voice",
     custom:"Custom Set",
     mixed:"Mixed"
   };
@@ -1104,6 +1742,14 @@
       name:"Command Relay",
       brief:"Orders barked across the fleet need reporting back to base, correctly and without embellishment."
     },
+    activeToPassive: {
+      name:"Voice Conversion Bay",
+      brief:"Convert active sentences into accurate passive voice without changing their meaning."
+    },
+    passiveToActive: {
+      name:"Reverse Voice Bay",
+      brief:"Recover the doer and action by converting passive sentences back into active voice."
+    },
     custom: {
       name:"Classroom Upload",
       brief:"A custom transmission set uploaded by your instructor."
@@ -1123,6 +1769,8 @@
     pastPerfectProgressive: buildBank("pastPerfectProgressive"),
     reportedQuestions: buildBank("reportedQuestions"),
     reportedCommands: buildBank("reportedCommands"),
+    activeToPassive: buildVoiceBank("activeToPassive", ACTIVE_TO_PASSIVE),
+    passiveToActive: buildVoiceBank("passiveToActive", PASSIVE_TO_ACTIVE),
     custom: [] // v1.4: populated at runtime by the CSV importer, see importCustomCsv()
   };
 
@@ -1131,7 +1779,7 @@
   const QUESTION_LABELS = {};
   Object.keys(BANKS).forEach(function(cat){
     BANKS[cat].forEach(function(q, i){
-      QUESTION_LABELS[q.id] = TENSE_LABELS[cat] + " \u2014 " + VERBS[i].base;
+      QUESTION_LABELS[q.id] = TENSE_LABELS[cat] + " \u2014 " + (q.voiceQuestion ? "Q" + (i + 1) : VERBS[i].base);
     });
   });
 
@@ -1322,7 +1970,12 @@
      deployment (or an unreachable Worker) behaves exactly like v1.4.2. */
   const DEFAULT_GAME_SETTINGS = {
     modes: { fill: true, spot: true },
-    difficulties: { novice: true, veteran: true, elite: true }
+    difficulties: { novice: true, veteran: true, elite: true },
+    categories: {
+      simplePast: true, pastProgressive: true, pastPerfect: true, pastPerfectProgressive: true,
+      reportedQuestions: true, reportedCommands: true, activeToPassive: true, passiveToActive: true
+    },
+    questionTypes: { tenseAspect: true, reportedSpeech: true, voiceConversion: true, custom: true }
   };
   let gameSettings = JSON.parse(JSON.stringify(DEFAULT_GAME_SETTINGS));
 
@@ -1332,7 +1985,9 @@
       if(data && data.settings){
         gameSettings = {
           modes: Object.assign({}, DEFAULT_GAME_SETTINGS.modes, data.settings.modes || {}),
-          difficulties: Object.assign({}, DEFAULT_GAME_SETTINGS.difficulties, data.settings.difficulties || {})
+          difficulties: Object.assign({}, DEFAULT_GAME_SETTINGS.difficulties, data.settings.difficulties || {}),
+          categories: Object.assign({}, DEFAULT_GAME_SETTINGS.categories, data.settings.categories || {}),
+          questionTypes: Object.assign({}, DEFAULT_GAME_SETTINGS.questionTypes, data.settings.questionTypes || {})
         };
       }
     }catch(e){ /* offline: fall back to defaults (everything on) */ }
@@ -1348,7 +2003,9 @@
     if(data && data.ok && data.settings){
       gameSettings = {
         modes: Object.assign({}, DEFAULT_GAME_SETTINGS.modes, data.settings.modes || {}),
-        difficulties: Object.assign({}, DEFAULT_GAME_SETTINGS.difficulties, data.settings.difficulties || {})
+        difficulties: Object.assign({}, DEFAULT_GAME_SETTINGS.difficulties, data.settings.difficulties || {}),
+        categories: Object.assign({}, DEFAULT_GAME_SETTINGS.categories, data.settings.categories || {}),
+        questionTypes: Object.assign({}, DEFAULT_GAME_SETTINGS.questionTypes, data.settings.questionTypes || {})
       };
     }
     return !!(data && data.ok);
@@ -1810,6 +2467,9 @@
   }
 
   function buildRenderParts(question, difficulty){
+    if(question.voiceQuestion){
+      return question.parts;
+    }
     if(difficulty === "elite"){
       // Only "Name said " is shown; everything else is one big blank.
       const parts = question.parts;
@@ -1995,20 +2655,32 @@
     pastPerfectProgressive:"I was studying last night. \u2192 She said she had been studying the night before.",
     reportedQuestions:"\u201CDo you work now?\u201D \u2192 The officer asked if she worked then.",
     reportedCommands:"\u201CClean the house!\u201D \u2192 The officer told her to clean the house.",
+    activeToPassive:"The diligent prefects organized the carnival. \u2192 The carnival was organized by the prefects.",
+    passiveToActive:"The cat was rescued by the firefighter. \u2192 The firefighter rescued the cat.",
     custom:"Your teacher's own uploaded sentence set.",
-    mixed:"A random blend of all the tenses above."
+    mixed:"A random blend of all open grammar categories."
   };
 
   function buildModeScreen(){
     const grid = document.getElementById("tense-grid");
     grid.innerHTML = "";
-    const options = ["simplePast","pastProgressive","pastPerfect","pastPerfectProgressive","reportedQuestions","reportedCommands"];
+    const options = ["simplePast","pastProgressive","pastPerfect","pastPerfectProgressive","reportedQuestions","reportedCommands","activeToPassive","passiveToActive"];
     if(BANKS.custom.length > 0){ options.push("custom"); }
     options.push("mixed");
     options.forEach(function(key){
+      const categoryLocked = key !== "mixed" && key !== "custom" && gameSettings.categories[key] === false;
+      const typeLocked = key !== "mixed" && !questionTypeOpen(key);
+      const locked = categoryLocked || typeLocked;
       const card = document.createElement("div");
-      card.className = "tense-card" + (state.selectedTenses.indexOf(key) !== -1 ? " selected" : "");
-      card.innerHTML = '<div class="t-name">' + TENSE_LABELS[key] + '</div><div class="t-sector">' + SECTOR_INFO[key].name + '</div><div class="t-desc">' + TENSE_DESCRIPTIONS[key] + '</div>';
+      card.className = "tense-card" + (state.selectedTenses.indexOf(key) !== -1 ? " selected" : "") + (locked ? " locked" : "");
+      card.innerHTML = '<div class="t-name">' + TENSE_LABELS[key] + '</div><div class="t-sector">' + SECTOR_INFO[key].name + '</div><div class="t-desc">' + TENSE_DESCRIPTIONS[key] + '</div>' +
+        (typeLocked ? '<div class="lock-reason">\uD83D\DD12 Question type closed by your teacher</div>' : (categoryLocked ? '<div class="lock-reason">\uD83D\DD12 Closed by your teacher</div>' : '')) +
+        ((key === "activeToPassive" || key === "passiveToActive") ? '<div class="lock-reason">Grammar Practice only</div>' : '');
+      if(locked){
+        state.selectedTenses = state.selectedTenses.filter(function(k){ return k !== key; });
+        grid.appendChild(card);
+        return;
+      }
       card.addEventListener("click", function(){
         if(key === "mixed"){
           state.selectedTenses = state.selectedTenses.indexOf("mixed") !== -1 ? [] : ["mixed"];
@@ -2097,7 +2769,7 @@
 
   document.getElementById("btn-start").addEventListener("click", function(){
     if(state.selectedTenses.length === 0){
-      alert("Pick at least one tense (or Mixed) before launching.");
+      alert("Pick at least one category (or Mixed) before launching.");
       return;
     }
     if(gameSettings.modes[state.playMode] === false || gameSettings.difficulties[state.difficulty] === false || state.masteredTiers[state.difficulty] === true){
@@ -2227,17 +2899,40 @@
     URL.revokeObjectURL(url);
   });
 
+  /* ============ v1.7: QUESTION TYPE CONTROLS ============
+     High-level question families let a teacher restrict a session without
+     having to toggle every individual grammar category. Category locks still
+     apply as the more specific control. */
+  const QUESTION_TYPE_BY_CATEGORY = {
+    simplePast:"tenseAspect", pastProgressive:"tenseAspect", pastPerfect:"tenseAspect",
+    pastPerfectProgressive:"tenseAspect", reportedQuestions:"reportedSpeech",
+    reportedCommands:"reportedSpeech", activeToPassive:"voiceConversion",
+    passiveToActive:"voiceConversion", custom:"custom"
+  };
+
+  function questionTypeOpen(category){
+    const type = QUESTION_TYPE_BY_CATEGORY[category];
+    return !type || gameSettings.questionTypes[type] !== false;
+  }
+
   /* ============ GAME LOGIC ============ */
   function shuffledPool(){
     let src = [];
     if(state.selectedTenses.indexOf("mixed") !== -1){
       src = [].concat(
         BANKS.simplePast, BANKS.pastProgressive, BANKS.pastPerfect, BANKS.pastPerfectProgressive,
-        BANKS.reportedQuestions, BANKS.reportedCommands, BANKS.custom
+        BANKS.reportedQuestions, BANKS.reportedCommands, BANKS.activeToPassive, BANKS.passiveToActive, BANKS.custom
       );
     } else {
-      state.selectedTenses.forEach(function(k){ src = src.concat(BANKS[k]); });
+      state.selectedTenses.forEach(function(k){ src = src.concat(BANKS[k] || []); });
     }
+    // Voice-conversion banks are fill/Grammar Practice tasks. Do not feed them
+    // into the legacy Spot the Error renderer, whose three-field corruption
+    // model is specific to reported-speech questions.
+    if(state.playMode === "spot") src = src.filter(function(q){ return !q.voiceQuestion; });
+    src = src.filter(function(q){
+      return (q.tense === "custom" || gameSettings.categories[q.tense] !== false) && questionTypeOpen(q.tense);
+    });
     const arr = src.slice();
     for(let i=arr.length-1;i>0;i--){
       const j = Math.floor(Math.random()*(i+1));
@@ -2264,6 +2959,10 @@
     if(opt && opt.questions){ state.questionsTarget = opt.questions; }
     state.pool = shuffledPool();
     state.poolIdx = 0;
+    if(state.pool.length === 0){
+      alert("No questions are available for this category and practice style. Choose Grammar Practice or another open category.");
+      return;
+    }
 
     const shipEl = document.getElementById("ship-svg");
     shipEl.innerHTML = pickShip();
@@ -2409,7 +3108,7 @@
       } else {
         const input = document.createElement("input");
         input.type = "text";
-        const widthClass = renderDiff === "elite" ? " xwide" : (idx === 3 || idx === 5 ? " wide" : "");
+        const widthClass = state.current.voiceQuestion ? " xwide" : (renderDiff === "elite" ? " xwide" : (idx === 3 || idx === 5 ? " wide" : ""));
         input.className = "blank" + widthClass;
         input.dataset.idx = String(idx);
         input.autocomplete = "off";
@@ -3479,15 +4178,26 @@
     await renderSidebarBoard();
   }
 
-  /* ============ v1.5: CLASS CONTROLS admin UI ============ */
+  /* ============ v1.7: CLASS CONTROLS admin UI ============ */
   const SETTINGS_MODE_LABELS = {fill:"Grammar Practice", spot:"Spot the Error"};
   const SETTINGS_DIFF_LABELS = {novice:"Novice", veteran:"Veteran", elite:"Elite"};
+  const SETTINGS_QUESTION_TYPE_LABELS = {
+    tenseAspect:"Tense & Aspect", reportedSpeech:"Reported Speech", voiceConversion:"Voice Conversion", custom:"Custom Questions"
+  };
+  const SETTINGS_CATEGORY_LABELS = {
+    simplePast:"Simple Past", pastProgressive:"Past Progressive", pastPerfect:"Past Perfect",
+    pastPerfectProgressive:"Past Perfect Progressive", reportedQuestions:"Reported Questions",
+    reportedCommands:"Reported Commands", activeToPassive:"Active Voice to Passive Voice",
+    passiveToActive:"Passive Voice to Active Voice"
+  };
   let pendingSettings = null; // edited in the admin UI, not yet saved
 
   function renderAdminSettings(){
     pendingSettings = JSON.parse(JSON.stringify(gameSettings));
     renderSettingsGrid("settings-modes-grid", "modes", SETTINGS_MODE_LABELS);
     renderSettingsGrid("settings-diff-grid", "difficulties", SETTINGS_DIFF_LABELS);
+    renderSettingsGrid("settings-question-type-grid", "questionTypes", SETTINGS_QUESTION_TYPE_LABELS);
+    renderSettingsGrid("settings-category-grid", "categories", SETTINGS_CATEGORY_LABELS);
     document.getElementById("settings-save-status").textContent = "";
   }
 
@@ -3512,8 +4222,10 @@
     const status = document.getElementById("settings-save-status");
     const anyModeOn = Object.keys(pendingSettings.modes).some(function(k){ return pendingSettings.modes[k]; });
     const anyDiffOn = Object.keys(pendingSettings.difficulties).some(function(k){ return pendingSettings.difficulties[k]; });
-    if(!anyModeOn || !anyDiffOn){
-      status.textContent = "Keep at least one practice style and one difficulty open.";
+    const anyCategoryOn = Object.keys(pendingSettings.categories).some(function(k){ return pendingSettings.categories[k]; });
+    const anyQuestionTypeOn = Object.keys(pendingSettings.questionTypes).some(function(k){ return pendingSettings.questionTypes[k]; });
+    if(!anyModeOn || !anyDiffOn || !anyCategoryOn || !anyQuestionTypeOn){
+      status.textContent = "Keep at least one practice style, one difficulty, one question type, and one category open.";
       status.style.color = "var(--danger)";
       return;
     }
@@ -3602,20 +4314,123 @@
   document.getElementById("btn-analytics-refresh").addEventListener("click", renderAdminAnalytics);
   document.getElementById("btn-analytics-reset").addEventListener("click", adminResetAnalytics);
 
-  /* ============ v1.4.2: TEAM LEADERBOARD (full-screen, projector-facing) ============
+  /* ============ v1.5.1: TEAM LEADERBOARD (full-screen, projector-facing) ============
      Groups scores by the @ClassCode tag pupils already log in with and sums
-     them per group, so teams can compete on total score. Polls the same
-     public /api/leaderboard endpoint every few seconds \u2014 this is "near
-     real-time" (bounded by both the poll interval and KV's own eventual
-     consistency), not a live push feed. See the file's version notes for
-     why: true live mid-game updates would need a backend redesign. */
+     them per group, so teams can compete on total score.
+
+     Live updates now come from a WebSocket to a Durable Object (see
+     TeamChallengeRoom in worker.js) instead of polling /api/leaderboard on
+     a timer: opening the board does ONE GET to seed the current state, then
+     every subsequent score submitted anywhere pushes straight to this
+     screen the moment the Worker accepts it. TEAM_FALLBACK_POLL_MS below is
+     only a safety net for while the socket is down/reconnecting, not the
+     primary update path. */
   const TEAM_SESSION_KEY = "speechInvadersTeamSessionStart";
   const TEAM_GROUPS_KEY = "speechInvadersTeamSelectedGroups";
-  const TEAM_POLL_MS = 7000;
-  let teamPollTimer = null;
+  const TEAM_FALLBACK_POLL_MS = 20000;
+  let teamSocket = null;
+  let teamReconnectTimer = null;
+  let teamReconnectDelay = 2000;
+  const TEAM_RECONNECT_MAX_MS = 15000;
+  let teamFallbackTimer = null;
+  let teamBoardOpen = false;
   let teamLastEntries = [];
+  let teamLastMsgTs = 0; // ms epoch of the last broadcast we actually received
   let teamSessionStart = 0;
   let teamSelectedGroups = null; // null = "all groups seen so far"; otherwise a Set
+
+  function setTeamLiveStatus(state){
+    // state: "live" | "reconnecting" | "off"
+    const el = document.getElementById("team-live-status");
+    if(!el) return;
+    el.classList.remove("live", "reconnecting");
+    if(state === "live"){
+      el.classList.add("live");
+      el.textContent = "\u25CF LIVE";
+    }else if(state === "reconnecting"){
+      el.classList.add("reconnecting");
+      el.textContent = "\u25CF Reconnecting\u2026";
+    }else{
+      el.textContent = "";
+    }
+  }
+
+  function teamWsUrl(){
+    // Same host/path scheme as API_BASE, just http(s) -> ws(s). ?since=
+    // lets the Durable Object replay anything broadcast while we were
+    // disconnected, from its small SQLite reconnect buffer -- omitted on
+    // the very first connect of a session since refreshTeamBoard() just
+    // gave us a fresh full snapshot.
+    const base = API_BASE.replace(/^http/, "ws") + "/api/team-challenge/connect";
+    return teamLastMsgTs > 0 ? (base + "?since=" + encodeURIComponent(teamLastMsgTs)) : base;
+  }
+
+  function scheduleTeamFallbackPoll(){
+    if(teamFallbackTimer) return;
+    teamFallbackTimer = setInterval(refreshTeamBoard, TEAM_FALLBACK_POLL_MS);
+  }
+
+  function stopTeamFallbackPoll(){
+    clearInterval(teamFallbackTimer);
+    teamFallbackTimer = null;
+  }
+
+  function connectTeamSocket(){
+    if(!teamBoardOpen) return;
+    let socket;
+    try{
+      socket = new WebSocket(teamWsUrl());
+    }catch(e){
+      setTeamLiveStatus("reconnecting");
+      scheduleTeamFallbackPoll();
+      return;
+    }
+    teamSocket = socket;
+
+    socket.addEventListener("open", function(){
+      teamReconnectDelay = 2000;
+      stopTeamFallbackPoll();
+      setTeamLiveStatus("live");
+    });
+
+    socket.addEventListener("message", function(ev){
+      let msg;
+      try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+      if(msg && msg.type === "score" && msg.entry){
+        teamLastMsgTs = msg.ts || Date.now();
+        teamLastEntries.push(msg.entry);
+        renderTeamGroupPicker();
+        renderTeamBoard();
+      }
+    });
+
+    socket.addEventListener("close", function(){
+      if(teamSocket !== socket) return; // superseded by a newer connection
+      teamSocket = null;
+      if(!teamBoardOpen) return; // closed on purpose when leaving the screen
+      setTeamLiveStatus("reconnecting");
+      scheduleTeamFallbackPoll();
+      teamReconnectTimer = setTimeout(connectTeamSocket, teamReconnectDelay);
+      teamReconnectDelay = Math.min(teamReconnectDelay * 2, TEAM_RECONNECT_MAX_MS);
+    });
+
+    socket.addEventListener("error", function(){
+      try{ socket.close(); }catch(e){ /* already closing */ }
+    });
+  }
+
+  function disconnectTeamSocket(){
+    teamBoardOpen = false;
+    clearTimeout(teamReconnectTimer);
+    teamReconnectTimer = null;
+    stopTeamFallbackPoll();
+    if(teamSocket){
+      const s = teamSocket;
+      teamSocket = null;
+      try{ s.close(); }catch(e){ /* already closing */ }
+    }
+    setTeamLiveStatus("off");
+  }
 
   function groupLabel(classCode){
     return classCode ? classCode.toUpperCase() : "(Ungrouped)";
@@ -3713,6 +4528,11 @@
 
   async function refreshTeamBoard(){
     teamLastEntries = await loadBoard();
+    // This snapshot already reflects everything up to right now, so a
+    // socket that reconnects after this shouldn't replay anything from
+    // before this moment -- otherwise a fallback-poll refresh followed by
+    // a reconnect would double up entries (full snapshot + replayed).
+    teamLastMsgTs = Date.now();
     renderTeamGroupPicker();
     renderTeamBoard();
   }
@@ -3721,13 +4541,12 @@
     loadTeamPrefs();
     show("screen-team-board");
     document.getElementById("team-group-picker").classList.add("hidden");
-    refreshTeamBoard();
-    clearInterval(teamPollTimer);
-    teamPollTimer = setInterval(refreshTeamBoard, TEAM_POLL_MS);
+    teamBoardOpen = true;
+    setTeamLiveStatus("reconnecting");
+    refreshTeamBoard().then(connectTeamSocket); // one snapshot GET, then switch to live push
   }
   function closeTeamBoard(){
-    clearInterval(teamPollTimer);
-    teamPollTimer = null;
+    disconnectTeamSocket();
     if(document.fullscreenElement){ document.exitFullscreen().catch(function(){}); }
     show("screen-admin");
   }

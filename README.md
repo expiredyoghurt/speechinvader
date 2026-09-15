@@ -98,7 +98,7 @@ leaderboard through your Worker.
 | View question analytics | Anyone | \u2014 (public endpoint) |
 | Log a question attempt | Anyone | \u2014 (public endpoint) |
 | Reset question analytics | Only someone who knows the admin secret | **Server-side**, in the Worker |
-| View Class Controls (modes/difficulties open) | Anyone | \u2014 (public endpoint) |
+| View Class Controls (modes/difficulties/question types open) | Anyone | \u2014 (public endpoint) |
 | Change Class Controls | Only someone who knows the admin secret | **Server-side**, in the Worker |
 
 Question analytics (the new "per-question error rate" table in the Admin
@@ -113,11 +113,12 @@ opens the Admin Console screen, but they still can't actually delete
 anything unless they also know the secret configured with `wrangler secret
 put` \u2014 which never appears in any file you host or share.
 
-## Class Controls (v1.5)
+## Class Controls (v1.7)
 
 The Admin Console's "Class Controls" panel lets you temporarily switch off
-a practice style (Grammar Practice / Spot the Error) or a difficulty tier
-(Novice / Veteran / Elite) class-wide \u2014 useful for, say, an assessment
+a practice style (Grammar Practice / Spot the Error), a difficulty tier
+(Novice / Veteran / Elite), a high-level question type, or an individual
+grammar category class-wide \u2014 useful for, say, an assessment
 week where you only want Elite attempts counting. It's backed by
 `GET/POST /api/settings`, stored under its own key in the same
 `LEADERBOARD` KV namespace (no new namespace or redeploy needed). Reads
@@ -125,6 +126,17 @@ are public so every pupil's device picks up the current settings the next
 time they load the mode-select screen; writes require the admin secret,
 same as deletes. Leaving everything toggled on behaves exactly like v1.4.2
 had no Class Controls at all.
+
+### Question types (v1.7)
+The high-level Question type controls are:
+- **Tense & Aspect** — Simple Past, Past Progressive, Past Perfect, Past Perfect Progressive
+- **Reported Speech** — Reported Questions, Reported Commands
+- **Voice Conversion** — Active Voice to Passive Voice, Passive Voice to Active Voice
+- **Custom Questions** — the imported Custom Set
+
+A question type lock is broader than an individual category lock. For example,
+closing **Voice Conversion** disables both Active→Passive and Passive→Active,
+while category controls can still be used for finer-grained restrictions.
 
 ## Class codes and weekly seasons
 
@@ -227,3 +239,16 @@ Whole-class/projector mode with teacher-controlled pacing and server-side
 answer validation (beyond just the leaderboard going live) is still scoped
 but not built \u2014 that's a bigger redesign than this Durable Object, which
 only covers the Team Leaderboard's live totals.
+
+  - Backend now ships in two flavors with an identical REST contract —
+    Cloudflare Workers (this folder) and Firebase Cloud Functions +
+    Firestore (`../firebase/`). Pick one; `speech-invaders.html` only
+    needs its `API_BASE` constant pointed at whichever you deploy.
+- **v1.6** — Added 100 voice-conversion questions: 50 Active Voice to
+  Passive Voice and 50 Passive Voice to Active Voice. Voice conversion is
+  available in Grammar Practice and can be independently locked by category.
+- **v1.7** — Refined Class Controls with a new **Question type** layer.
+  Teachers/admins can open or close Tense & Aspect, Reported Speech, Voice
+  Conversion, and Custom Questions independently. These high-level locks are
+  server-synced and combine with the existing individual grammar-category
+  controls.
