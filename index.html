@@ -1868,11 +1868,27 @@
   let adminSecret = null;     // set only after a successful admin login this session
 
   async function apiFetch(path, options){
-    const res = await fetch(API_BASE + path, Object.assign({
+    const opts = Object.assign({
       headers: { "Content-Type": "application/json" }
-    }, options || {}));
-    if(!res.ok){ throw new Error("HTTP " + res.status); }
-    return res.json();
+    }, options || {});
+    // Never let an unreachable Worker leave an admin action stuck on
+    // “Saving…” indefinitely.
+    const controller = new AbortController();
+    const timeout = setTimeout(function(){ controller.abort(); }, 12000);
+    opts.signal = controller.signal;
+    try{
+      const res = await fetch(API_BASE + path, opts);
+      const text = await res.text();
+      let data = null;
+      try{ data = text ? JSON.parse(text) : null; }catch(e){}
+      if(!res.ok){
+        const detail = data && data.error ? data.error : ("HTTP " + res.status);
+        throw new Error(detail);
+      }
+      return data;
+    }finally{
+      clearTimeout(timeout);
+    }
   }
 
   async function loadBoard(){
@@ -2000,15 +2016,28 @@
       headers: { "Content-Type": "application/json", "X-Admin-Secret": adminSecret || "" },
       body: JSON.stringify(next)
     });
-    if(data && data.ok && data.settings){
-      gameSettings = {
-        modes: Object.assign({}, DEFAULT_GAME_SETTINGS.modes, data.settings.modes || {}),
-        difficulties: Object.assign({}, DEFAULT_GAME_SETTINGS.difficulties, data.settings.difficulties || {}),
-        categories: Object.assign({}, DEFAULT_GAME_SETTINGS.categories, data.settings.categories || {}),
-        questionTypes: Object.assign({}, DEFAULT_GAME_SETTINGS.questionTypes, data.settings.questionTypes || {})
-      };
+    if(!(data && data.ok && data.settings)){
+      throw new Error((data && data.error) || "The server did not confirm the save.");
     }
-    return !!(data && data.ok);
+
+    // Verify with a fresh GET so “Saved” means the settings can actually be
+    // read back from the shared Worker/KV store, not merely that POST returned.
+    const check = await apiFetch("/api/settings", { method: "GET" });
+    if(!(check && check.ok && check.settings)){
+      throw new Error("The server saved the request but could not confirm it.");
+    }
+    const expected = JSON.stringify(next);
+    const actual = JSON.stringify({
+      modes: Object.assign({}, DEFAULT_GAME_SETTINGS.modes, check.settings.modes || {}),
+      difficulties: Object.assign({}, DEFAULT_GAME_SETTINGS.difficulties, check.settings.difficulties || {}),
+      categories: Object.assign({}, DEFAULT_GAME_SETTINGS.categories, check.settings.categories || {}),
+      questionTypes: Object.assign({}, DEFAULT_GAME_SETTINGS.questionTypes, check.settings.questionTypes || {})
+    });
+    if(expected !== actual){
+      throw new Error("The server response did not match the settings just saved.");
+    }
+    gameSettings = JSON.parse(actual);
+    return true;
   }
 
   // Lightweight round-trip to confirm the Worker is reachable, without
@@ -4231,10 +4260,23 @@
     }
     status.textContent = "Saving\u2026";
     status.style.color = "var(--text-dim)";
-    const ok = await saveSettings(pendingSettings);
-    status.textContent = ok ? "\u2713 Saved \u2014 live for every device now." : "Save failed \u2014 check your admin secret / connection.";
-    status.style.color = ok ? "var(--ok)" : "var(--danger)";
-    if(ok) renderAdminSettings();
+    const saveStarted = Date.now();
+    try{
+      await saveSettings(pendingSettings);
+      const elapsed = Date.now() - saveStarted;
+      // Keep the confirmation visible. Do not re-render the settings grid
+      // here because that previously cleared the status immediately.
+      status.textContent = "\u2713 Saved \u2014 confirmed by server and live for every device.";
+      status.style.color = "var(--ok)";
+      status.title = "Confirmed by the shared Worker/KV settings store.";
+      console.log("Class Controls saved and verified in " + elapsed + "ms");
+    }catch(e){
+      const msg = e && e.message ? e.message : "Unknown save error";
+      status.textContent = "\u2717 Save failed \u2014 " + msg;
+      status.style.color = "var(--danger)";
+      status.title = msg;
+      console.error("Class Controls save failed:", e);
+    }
   });
 
   document.getElementById("btn-admin-refresh").addEventListener("click", renderAdminList);
