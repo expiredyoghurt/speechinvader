@@ -3,7 +3,9 @@ main = "worker.js"
 compatibility_date = "2025-01-01"
 
 # Leaderboard + question-analytics storage \u2014 unchanged from earlier versions,
-# still the same namespace your existing high scores live in.
+# still the same namespace your existing high scores live in. v1.5's new
+# Class Controls (/api/settings) also live here, under their own KV key \u2014
+# no new namespace or redeploy-config change needed for that feature.
 [[kv_namespaces]]
 binding = "LEADERBOARD"
 id = "32466beddfb141b082bd9295f952e2be"
@@ -15,3 +17,24 @@ id = "32466beddfb141b082bd9295f952e2be"
 [[kv_namespaces]]
 binding = "Game_SI_KV"
 id = "aa5b3c89630447faa41747ed3c73197b"
+
+# v1.5.1: Live Team Challenge push channel. One Durable Object instance
+# (see TeamChallengeRoom in worker.js) holds the WebSocket connections for
+# whichever projector currently has the Team Leaderboard open, and gets
+# pinged with a fire-and-forget broadcast every time a score is submitted.
+# KV remains the source of truth for persisted scores -- the embedded
+# SQLite database here (see new_sqlite_classes below) holds nothing but a
+# short rolling reconnect buffer, so losing it costs at most a missed live
+# update, never a lost score.
+# This uses the SQLite storage backend (new_sqlite_classes), which is
+# available on the Workers FREE plan -- no plan upgrade needed. The older
+# key-value storage backend for Durable Objects is Paid-plan-only; SQLite-
+# backed ones are not. See:
+# https://developers.cloudflare.com/durable-objects/best-practices/access-durable-objects-storage/#create-sqlite-backed-durable-object-class
+[[durable_objects.bindings]]
+name = "TEAM_CHALLENGE"
+class_name = "TeamChallengeRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TeamChallengeRoom"]
