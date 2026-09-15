@@ -457,6 +457,28 @@ export default {
         await env.LEADERBOARD.put(SETTINGS_KEY, JSON.stringify(merged));
         return json({ ok: true, settings: merged });
       }
+// GET settings
+if (path === "/api/settings" && request.method === "GET") {
+  const raw = await env.LEADERBOARD.get("settings");
+  const settings = raw ? JSON.parse(raw) : {};
+  return json({ ok: true, settings });
+}
+
+// POST settings (admin-only)
+if (path === "/api/settings" && request.method === "POST") {
+  if (!isAdmin(request, env)) {
+    return json({ ok: false, error: "unauthorized" }, 401);
+  }
+  let body;
+  try { body = await request.json(); } catch (e) {
+    return json({ ok: false, error: "invalid JSON" }, 400);
+  }
+  if (!body || typeof body !== "object") {
+    return json({ ok: false, error: "invalid payload" }, 400);
+  }
+  await env.LEADERBOARD.put("settings", JSON.stringify(body));
+  return json({ ok: true });
+}
 
       return json({ ok: false, error: "not found" }, 404);
     }catch(e){
