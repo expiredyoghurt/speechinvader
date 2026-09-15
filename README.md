@@ -113,7 +113,7 @@ opens the Admin Console screen, but they still can't actually delete
 anything unless they also know the secret configured with `wrangler secret
 put` \u2014 which never appears in any file you host or share.
 
-## Class Controls (v1.7)
+## Class Controls (v1.7.1)
 
 The Admin Console's "Class Controls" panel lets you temporarily switch off
 a practice style (Grammar Practice / Spot the Error), a difficulty tier
@@ -127,7 +127,7 @@ time they load the mode-select screen; writes require the admin secret,
 same as deletes. Leaving everything toggled on behaves exactly like v1.4.2
 had no Class Controls at all.
 
-### Question types (v1.7)
+### Question types (v1.7.1)
 The high-level Question type controls are:
 - **Tense & Aspect** — Simple Past, Past Progressive, Past Perfect, Past Perfect Progressive
 - **Reported Speech** — Reported Questions, Reported Commands
@@ -247,8 +247,15 @@ only covers the Team Leaderboard's live totals.
 - **v1.6** — Added 100 voice-conversion questions: 50 Active Voice to
   Passive Voice and 50 Passive Voice to Active Voice. Voice conversion is
   available in Grammar Practice and can be independently locked by category.
-- **v1.7** — Refined Class Controls with a new **Question type** layer.
+- **v1.7.1** — Refined Class Controls with a new **Question type** layer.
   Teachers/admins can open or close Tense & Aspect, Reported Speech, Voice
   Conversion, and Custom Questions independently. These high-level locks are
   server-synced and combine with the existing individual grammar-category
   controls.
+
+
+## v1.7.1 — Class Controls save reliability
+- Class Controls saves now have a 12-second network timeout so the UI cannot remain on “Saving…” indefinitely.
+- A successful save is followed by a fresh server read-back verification.
+- The admin console keeps a persistent “✓ Saved — confirmed by server and live for every device.” confirmation instead of clearing it during a re-render.
+- Server errors are shown directly in the save status, making authentication/connection failures visible.
